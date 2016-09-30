@@ -35,7 +35,7 @@ namespace Movement
     };
 
     // Transforms coordinates from global to transport offsets
-    class TransportPathTransform
+    class TC_GAME_API TransportPathTransform
     {
     public:
         TransportPathTransform(Unit* owner, bool transformForTransport)
@@ -49,7 +49,7 @@ namespace Movement
 
     /*  Initializes and launches spline movement
      */
-    class MoveSplineInit
+    class TC_GAME_API MoveSplineInit
     {
     public:
 
@@ -200,7 +200,7 @@ namespace Movement
         args.facing.f.x = finalSpot.x;
         args.facing.f.y = finalSpot.y;
         args.facing.f.z = finalSpot.z;
-        args.flags.EnableFacingPoint();
+        args.facing.type = MONSTER_MOVE_FACING_SPOT;
     }
 
     inline void MoveSplineInit::DisableTransportPathTransformations() { args.TransformForTransport = false; }

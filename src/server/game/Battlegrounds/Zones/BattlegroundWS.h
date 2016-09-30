@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -125,6 +125,12 @@ enum BG_WS_Graveyards
     WS_GRAVEYARD_MAIN_HORDE        = 772
 };
 
+enum BG_WS_ExploitTeleportLocations
+{
+    WS_EXPLOIT_TELEPORT_LOCATION_ALLIANCE = 3784,
+    WS_EXPLOIT_TELEPORT_LOCATION_HORDE = 3785
+};
+
 enum BG_WS_CreatureTypes
 {
     WS_SPIRIT_MAIN_ALLIANCE   = 0,
@@ -222,6 +228,7 @@ class BattlegroundWS : public Battleground
         void Reset() override;
         void EndBattleground(uint32 winner) override;
         WorldSafeLocsEntry const* GetClosestGraveYard(Player* player) override;
+        WorldSafeLocsEntry const* GetExploitTeleportLocation(Team team) override;
 
         void UpdateFlagState(uint32 team, uint32 value);
         void SetLastFlagCapture(uint32 team)                { _lastFlagCaptureTeam = team; }

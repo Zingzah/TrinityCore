@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -487,7 +487,7 @@ public:
 
         uint32 areaId = id ? (uint32)atoi(id) : player->GetZoneId();
 
-        AreaTableEntry const* areaEntry = GetAreaEntryByAreaID(areaId);
+        AreaTableEntry const* areaEntry = sAreaTableStore.LookupEntry(areaId);
 
         if (x < 0 || x > 100 || y < 0 || y > 100 || !areaEntry)
         {
@@ -497,19 +497,19 @@ public:
         }
 
         // update to parent zone if exist (client map show only zones without parents)
-        AreaTableEntry const* zoneEntry = areaEntry->ParentAreaID ? GetAreaEntryByAreaID(areaEntry->ParentAreaID) : areaEntry;
+        AreaTableEntry const* zoneEntry = areaEntry->ParentAreaID ? sAreaTableStore.LookupEntry(areaEntry->ParentAreaID) : areaEntry;
         ASSERT(zoneEntry);
 
         Map const* map = sMapMgr->CreateBaseMap(zoneEntry->MapID);
 
         if (map->Instanceable())
         {
-            handler->PSendSysMessage(LANG_INVALID_ZONE_MAP, areaEntry->ID, areaEntry->AreaName_lang, map->GetId(), map->GetMapName());
+            handler->PSendSysMessage(LANG_INVALID_ZONE_MAP, areaId, areaEntry->AreaName->Str[handler->GetSessionDbcLocale()], map->GetId(), map->GetMapName());
             handler->SetSentErrorMessage(true);
             return false;
         }
 
-        Zone2MapCoordinates(x, y, zoneEntry->ID);
+        sDB2Manager.Zone2MapCoordinates(areaEntry->ParentAreaID ? uint32(areaEntry->ParentAreaID) : areaId, x, y);
 
         if (!MapManager::IsValidMapCoord(zoneEntry->MapID, x, y))
         {

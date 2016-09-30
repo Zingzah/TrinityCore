@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -444,7 +444,7 @@ class boss_mimiron : public CreatureScript
                 DoCastAOE(SPELL_DESPAWN_ASSAULT_BOTS);
                 me->ExitVehicle();
                 // ExitVehicle() offset position is not implemented, so we make up for that with MoveJump()...
-                me->GetMotionMaster()->MoveJump(me->GetPositionX() + (10.f * std::cos(me->GetOrientation())), me->GetPositionY() + (10.f * std::sin(me->GetOrientation())), me->GetPositionZ(), 10.f, 5.f);
+                me->GetMotionMaster()->MoveJump(me->GetPositionX() + (10.f * std::cos(me->GetOrientation())), me->GetPositionY() + (10.f * std::sin(me->GetOrientation())), me->GetPositionZ(), me->GetOrientation(), 10.f, 5.f);
                 events.ScheduleEvent(EVENT_OUTTRO_1, 7000);
             }
 
@@ -478,7 +478,7 @@ class boss_mimiron : public CreatureScript
 
             void UpdateAI(uint32 diff) override
             {
-                if ((!UpdateVictim() || !CheckInRoom()) && instance->GetBossState(BOSS_MIMIRON) != DONE)
+                if (!UpdateVictim() && instance->GetBossState(BOSS_MIMIRON) != DONE)
                     return;
 
                 events.Update(diff);
@@ -701,9 +701,9 @@ class boss_leviathan_mk_ii : public CreatureScript
                     {
                         me->CastStop();
                         if (Unit* turret = me->GetVehicleKit()->GetPassenger(3))
-                            turret->Kill(turret);
+                            turret->KillSelf();
 
-                        me->SetSpeed(MOVE_RUN, 1.5f, true);
+                        me->SetSpeedRate(MOVE_RUN, 1.5f);
                         me->GetMotionMaster()->MovePoint(WP_MKII_P1_IDLE, VehicleRelocation[WP_MKII_P1_IDLE]);
                     }
                     else if (events.IsInPhase(PHASE_VOL7RON))
@@ -846,7 +846,7 @@ class boss_leviathan_mk_ii : public CreatureScript
 
             void UpdateAI(uint32 diff) override
             {
-                if (!UpdateVictim() || !CheckInRoom())
+                if (!UpdateVictim())
                     return;
 
                 events.Update(diff);
@@ -999,7 +999,7 @@ class boss_vx_001 : public CreatureScript
                 }
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason /*why*/) override
             {
                 summons.DespawnAll();
             }
@@ -1174,7 +1174,7 @@ class boss_aerial_command_unit : public CreatureScript
                 }
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason /*why*/) override
             {
                 summons.DespawnAll();
             }
@@ -1636,6 +1636,9 @@ class go_mimiron_hardmode_button : public GameObjectScript
 
         bool OnGossipHello(Player* /*player*/, GameObject* go) override
         {
+            if (go->HasFlag(GAMEOBJECT_FLAGS, GO_FLAG_NOT_SELECTABLE))
+                return true;
+
             InstanceScript* instance = go->GetInstanceScript();
             if (!instance)
                 return false;

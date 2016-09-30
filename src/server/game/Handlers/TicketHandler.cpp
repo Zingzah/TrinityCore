@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -94,4 +94,14 @@ void WorldSession::HandleBugReportOpcode(WorldPackets::Ticket::BugReport& bugRep
     stmt->setString(0, bugReport.Text);
     stmt->setString(1, bugReport.DiagInfo);
     CharacterDatabase.Execute(stmt);
+}
+
+void WorldSession::HandleComplaint(WorldPackets::Ticket::Complaint& packet)
+{    // NOTE: all chat messages from this spammer are automatically ignored by the spam reporter until logout in case of chat spam.
+     // if it's mail spam - ALL mails from this spammer are automatically removed by client
+
+    WorldPackets::Ticket::ComplaintResult result;
+    result.ComplaintType = packet.ComplaintType;
+    result.Result = 0;
+    SendPacket(result.Write());
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -34,7 +34,8 @@
 #endif
 #include "DBFilesClientList.h"
 #include "CascLib.h"
-#include "dbcfile.h"
+#include "DB2.h"
+#include "Banner.h"
 #include "StringFormat.h"
 
 #include "adt.h"
@@ -74,13 +75,33 @@ typedef struct
     uint32 id;
 } map_id;
 
-map_id *map_ids;
-uint16 *areas;
-uint16 *LiqType;
+std::vector<map_id> map_ids;
+std::vector<uint16> LiqType;
 #define MAX_PATH_LENGTH 128
 char output_path[MAX_PATH_LENGTH];
 char input_path[MAX_PATH_LENGTH];
-uint32 maxAreaId = 0;
+
+struct LiquidTypeMeta
+{
+    static DB2Meta const* Instance()
+    {
+        static char const* types = "sifffffSifihhbbbbbi";
+        static uint8 const arraySizes[19] = { 1, 1, 1, 1, 1, 1, 1, 6, 2, 18, 4, 1, 1, 1, 1, 1, 1, 6, 1 };
+        static DB2Meta instance(-1, 19, 0x28B44DCB, types, arraySizes);
+        return &instance;
+    }
+};
+
+struct MapMeta
+{
+    static DB2Meta const* Instance()
+    {
+        static char const* types = "siffssshhhhhhhbbbbb";
+        static uint8 const arraySizes[19] = { 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        static DB2Meta instance(-1, 19, 0xB32E648C, types, arraySizes);
+        return &instance;
+    }
+};
 
 // **************************************************
 // Extractor options
@@ -88,11 +109,12 @@ uint32 maxAreaId = 0;
 enum Extract
 {
     EXTRACT_MAP = 1,
-    EXTRACT_DBC = 2
+    EXTRACT_DBC = 2,
+    EXTRACT_GT  = 8
 };
 
 // Select data for extract
-int   CONF_extract = EXTRACT_MAP | EXTRACT_DBC;
+int   CONF_extract = EXTRACT_MAP | EXTRACT_DBC | EXTRACT_GT;
 
 // This option allow limit minimum height to some value (Allow save some memory)
 bool  CONF_allow_height_limit = true;
@@ -155,7 +177,7 @@ void Usage(char const* prg)
         "%s -[var] [value]\n"\
         "-i set input path (max %d characters)\n"\
         "-o set output path (max %d characters)\n"\
-        "-e extract only MAP(1)/DBC(2) - standard: both(3)\n"\
+        "-e extract only MAP(1)/DBC(2)/gt(8) - standard: all(11)\n"\
         "-f height stored as int (less map size but lost some accuracy) 1 by default\n"\
         "-l dbc locale\n"\
         "Example: %s -f 0 -i \"c:\\games\\game\"\n", prg, MAX_PATH_LENGTH - 1, MAX_PATH_LENGTH - 1, prg);
@@ -205,7 +227,7 @@ void HandleArgs(int argc, char* arg[])
                 if (c + 1 < argc)                            // all ok
                 {
                     CONF_extract = atoi(arg[c++ + 1]);
-                    if (!(CONF_extract > 0 && CONF_extract < 4))
+                    if (!(CONF_extract > 0 && CONF_extract < 12))
                         Usage(arg[0]);
                 }
                 else
@@ -277,31 +299,34 @@ uint32 ReadBuild(int locale)
     return build;
 }
 
-uint32 ReadMapDBC()
+void ReadMapDBC()
 {
     printf("Read Map.dbc file... ");
 
     HANDLE dbcFile;
-    if (!CascOpenFile(CascStorage, "DBFilesClient\\Map.dbc", CASC_LOCALE_NONE, 0, &dbcFile))
+    if (!CascOpenFile(CascStorage, "DBFilesClient\\Map.db2", CASC_LOCALE_NONE, 0, &dbcFile))
     {
         printf("Fatal error: Cannot find Map.dbc in archive! %s\n", HumanReadableCASCError(GetLastError()));
         exit(1);
     }
 
-    DBCFile dbc(dbcFile);
-    if (!dbc.open())
+    DB2FileLoader db2;
+    if (!db2.Load(dbcFile, MapMeta::Instance()))
     {
-        printf("Fatal error: Invalid Map.dbc file format!\n");
+        printf("Fatal error: Invalid Map.db2 file format! %s\n", HumanReadableCASCError(GetLastError()));
         exit(1);
     }
 
-    size_t map_count = dbc.getRecordCount();
-    map_ids = new map_id[map_count];
-    for(uint32 x = 0; x < map_count; ++x)
+    map_ids.resize(db2.GetNumRows());
+    std::unordered_map<uint32, uint32> idToIndex;
+    for (uint32 x = 0; x < db2.GetNumRows(); ++x)
     {
-        map_ids[x].id = dbc.getRecord(x).getUInt(0);
+        if (MapMeta::Instance()->HasIndexFieldInData())
+            map_ids[x].id = db2.getRecord(x).getUInt(MapMeta::Instance()->GetIndexField(), 0);
+        else
+            map_ids[x].id = db2.getId(x);
 
-        const char* map_name = dbc.getRecord(x).getString(1);
+        const char* map_name = db2.getRecord(x).getString(0, 0);
         size_t max_map_name_length = sizeof(map_ids[x].name);
         if (strlen(map_name) >= max_map_name_length)
         {
@@ -311,69 +336,62 @@ uint32 ReadMapDBC()
 
         strncpy(map_ids[x].name, map_name, max_map_name_length);
         map_ids[x].name[max_map_name_length - 1] = '\0';
+        idToIndex[map_ids[x].id] = x;
+    }
+
+    for (uint32 x = 0; x < db2.GetNumRowCopies(); ++x)
+    {
+        uint32 from = db2.GetRowCopy(x).first;
+        uint32 to = db2.GetRowCopy(x).second;
+        auto itr = idToIndex.find(from);
+        if (itr != idToIndex.end())
+        {
+            map_id id;
+            id.id = to;
+            strcpy(id.name, map_ids[itr->second].name);
+            map_ids.push_back(id);
+        }
     }
 
     CascCloseFile(dbcFile);
-    printf("Done! (" SZFMTD " maps loaded)\n", map_count);
-    return map_count;
-}
-
-void ReadAreaTableDBC()
-{
-    printf("Read AreaTable.dbc file...");
-    HANDLE dbcFile;
-    if (!CascOpenFile(CascStorage, "DBFilesClient\\AreaTable.dbc", CASC_LOCALE_NONE, 0, &dbcFile))
-    {
-        printf("Fatal error: Cannot find AreaTable.dbc in archive! %s\n", HumanReadableCASCError(GetLastError()));
-        exit(1);
-    }
-
-    DBCFile dbc(dbcFile);
-    if(!dbc.open())
-    {
-        printf("Fatal error: Invalid AreaTable.dbc file format!\n");
-        exit(1);
-    }
-
-    size_t area_count = dbc.getRecordCount();
-    maxAreaId = dbc.getMaxId();
-    areas = new uint16[maxAreaId + 1];
-    memset(areas, 0xFF, sizeof(uint16) * (maxAreaId + 1));
-
-    for (uint32 x = 0; x < area_count; ++x)
-        areas[dbc.getRecord(x).getUInt(0)] = dbc.getRecord(x).getUInt(3);
-
-    CascCloseFile(dbcFile);
-    printf("Done! (" SZFMTD " areas loaded)\n", area_count);
+    printf("Done! (" SZFMTD " maps loaded)\n", map_ids.size());
 }
 
 void ReadLiquidTypeTableDBC()
 {
     printf("Read LiquidType.dbc file...");
     HANDLE dbcFile;
-    if (!CascOpenFile(CascStorage, "DBFilesClient\\LiquidType.dbc", CASC_LOCALE_NONE, 0, &dbcFile))
+    if (!CascOpenFile(CascStorage, "DBFilesClient\\LiquidType.db2", CASC_LOCALE_NONE, 0, &dbcFile))
     {
         printf("Fatal error: Cannot find LiquidType.dbc in archive! %s\n", HumanReadableCASCError(GetLastError()));
         exit(1);
     }
 
-    DBCFile dbc(dbcFile);
-    if(!dbc.open())
+    DB2FileLoader db2;
+    if (!db2.Load(dbcFile, LiquidTypeMeta::Instance()))
     {
-        printf("Fatal error: Invalid LiquidType.dbc file format!\n");
+        printf("Fatal error: Invalid LiquidType.db2 file format!\n");
         exit(1);
     }
 
-    size_t liqTypeCount = dbc.getRecordCount();
-    size_t liqTypeMaxId = dbc.getMaxId();
-    LiqType = new uint16[liqTypeMaxId + 1];
-    memset(LiqType, 0xff, (liqTypeMaxId + 1) * sizeof(uint16));
+    LiqType.resize(db2.GetMaxId() + 1, 0xFFFF);
 
-    for(uint32 x = 0; x < liqTypeCount; ++x)
-        LiqType[dbc.getRecord(x).getUInt(0)] = dbc.getRecord(x).getUInt(3);
+    for (uint32 x = 0; x < db2.GetNumRows(); ++x)
+    {
+        uint32 liquidTypeId;
+        if (LiquidTypeMeta::Instance()->HasIndexFieldInData())
+            liquidTypeId = db2.getRecord(x).getUInt(LiquidTypeMeta::Instance()->GetIndexField(), 0);
+        else
+            liquidTypeId = db2.getId(x);
+
+        LiqType[liquidTypeId] = db2.getRecord(x).getUInt8(13, 0);
+    }
+
+    for (uint32 x = 0; x < db2.GetNumRowCopies(); ++x)
+        LiqType[db2.GetRowCopy(x).second] = LiqType[db2.GetRowCopy(x).first];
 
     CascCloseFile(dbcFile);
-    printf("Done! (" SZFMTD " LiqTypes loaded)\n", liqTypeCount);
+    printf("Done! (" SZFMTD " LiqTypes loaded)\n", LiqType.size());
 }
 
 //
@@ -382,7 +400,7 @@ void ReadLiquidTypeTableDBC()
 
 // Map file format data
 static char const* MAP_MAGIC         = "MAPS";
-static char const* MAP_VERSION_MAGIC = "v1.5";
+static char const* MAP_VERSION_MAGIC = "v1.8";
 static char const* MAP_AREA_MAGIC    = "AREA";
 static char const* MAP_HEIGHT_MAGIC  = "MHGT";
 static char const* MAP_LIQUID_MAGIC  = "MLIQ";
@@ -411,9 +429,10 @@ struct map_areaHeader
     uint16 gridArea;
 };
 
-#define MAP_HEIGHT_NO_HEIGHT  0x0001
-#define MAP_HEIGHT_AS_INT16   0x0002
-#define MAP_HEIGHT_AS_INT8    0x0004
+#define MAP_HEIGHT_NO_HEIGHT            0x0001
+#define MAP_HEIGHT_AS_INT16             0x0002
+#define MAP_HEIGHT_AS_INT8              0x0004
+#define MAP_HEIGHT_HAS_FLIGHT_BOUNDS    0x0008
 
 struct map_heightHeader
 {
@@ -458,7 +477,7 @@ float selectUInt16StepStore(float maxDiff)
     return 65535 / maxDiff;
 }
 // Temporary grid data store
-uint16 area_flags[ADT_CELLS_PER_GRID][ADT_CELLS_PER_GRID];
+uint16 area_ids[ADT_CELLS_PER_GRID][ADT_CELLS_PER_GRID];
 
 float V8[ADT_GRID_SIZE][ADT_GRID_SIZE];
 float V9[ADT_GRID_SIZE+1][ADT_GRID_SIZE+1];
@@ -473,14 +492,17 @@ bool  liquid_show[ADT_GRID_SIZE][ADT_GRID_SIZE];
 float liquid_height[ADT_GRID_SIZE+1][ADT_GRID_SIZE+1];
 uint8 holes[ADT_CELLS_PER_GRID][ADT_CELLS_PER_GRID][8];
 
-bool TransformToHighRes(uint16 holes, uint8 hiResHoles[8])
+int16 flight_box_max[3][3];
+int16 flight_box_min[3][3];
+
+bool TransformToHighRes(uint16 lowResHoles, uint8 hiResHoles[8])
 {
     for (uint8 i = 0; i < 8; i++)
     {
         for (uint8 j = 0; j < 8; j++)
         {
             int32 holeIdxL = (i / 2) * 4 + (j / 2);
-            if (((holes >> holeIdxL) & 1) == 1)
+            if (((lowResHoles >> holeIdxL) & 1) == 1)
                 hiResHoles[i] |= (1 << j);
         }
     }
@@ -502,7 +524,7 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
     map.buildMagic = build;
 
     // Get area flags data
-    memset(area_flags, 0xFF, sizeof(area_flags));
+    memset(area_ids, 0, sizeof(area_ids));
     memset(V9, 0, sizeof(V9));
     memset(V8, 0, sizeof(V8));
 
@@ -513,14 +535,14 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
     memset(holes, 0, sizeof(holes));
 
     bool hasHoles = false;
+    bool hasFlightBox = false;
 
     for (std::multimap<std::string, FileChunk*>::const_iterator itr = adt.chunks.lower_bound("MCNK"); itr != adt.chunks.upper_bound("MCNK"); ++itr)
     {
         adt_MCNK* mcnk = itr->second->As<adt_MCNK>();
 
         // Area data
-        if (mcnk->areaid <= maxAreaId && areas[mcnk->areaid] != 0xFFFF)
-            area_flags[mcnk->iy][mcnk->ix] = areas[mcnk->areaid];
+        area_ids[mcnk->iy][mcnk->ix] = mcnk->areaid;
 
         // Height
         // Height values for triangles stored in order:
@@ -728,16 +750,24 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
         }
     }
 
+    if (FileChunk* chunk = adt.GetChunk("MFBO"))
+    {
+        adt_MFBO* mfbo = chunk->As<adt_MFBO>();
+        memcpy(flight_box_max, &mfbo->max, sizeof(flight_box_max));
+        memcpy(flight_box_min, &mfbo->min, sizeof(flight_box_min));
+        hasFlightBox = true;
+    }
+
     //============================================
     // Try pack area data
     //============================================
     bool fullAreaData = false;
-    uint32 areaflag = area_flags[0][0];
-    for (int y=0;y<ADT_CELLS_PER_GRID;y++)
+    uint32 areaId = area_ids[0][0];
+    for (int y = 0; y < ADT_CELLS_PER_GRID; ++y)
     {
-        for(int x=0;x<ADT_CELLS_PER_GRID;x++)
+        for (int x = 0; x < ADT_CELLS_PER_GRID; ++x)
         {
-            if(area_flags[y][x]!=areaflag)
+            if (area_ids[y][x] != areaId)
             {
                 fullAreaData = true;
                 break;
@@ -754,12 +784,12 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
     if (fullAreaData)
     {
         areaHeader.gridArea = 0;
-        map.areaMapSize+=sizeof(area_flags);
+        map.areaMapSize += sizeof(area_ids);
     }
     else
     {
         areaHeader.flags |= MAP_AREA_NO_AREA;
-        areaHeader.gridArea = static_cast<uint16>(areaflag);
+        areaHeader.gridArea = static_cast<uint16>(areaId);
     }
 
     //============================================
@@ -818,6 +848,12 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
     // Not need store if flat surface
     if (CONF_allow_float_to_int && (maxHeight - minHeight) < CONF_flat_height_delta_limit)
         heightHeader.flags |= MAP_HEIGHT_NO_HEIGHT;
+
+    if (hasFlightBox)
+    {
+        heightHeader.flags |= MAP_HEIGHT_HAS_FLIGHT_BOUNDS;
+        map.heightMapSize += sizeof(flight_box_max) + sizeof(flight_box_min);
+    }
 
     // Try store as packed in uint16 or uint8 values
     if (!(heightHeader.flags & MAP_HEIGHT_NO_HEIGHT))
@@ -966,8 +1002,8 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
     outFile.write(reinterpret_cast<const char*>(&map), sizeof(map));
     // Store area data
     outFile.write(reinterpret_cast<const char*>(&areaHeader), sizeof(areaHeader));
-    if (!(areaHeader.flags&MAP_AREA_NO_AREA))
-        outFile.write(reinterpret_cast<const char*>(area_flags), sizeof(area_flags));
+    if (!(areaHeader.flags & MAP_AREA_NO_AREA))
+        outFile.write(reinterpret_cast<const char*>(area_ids), sizeof(area_ids));
 
     // Store height data
     outFile.write(reinterpret_cast<const char*>(&heightHeader), sizeof(heightHeader));
@@ -988,6 +1024,12 @@ bool ConvertADT(std::string const& inputPath, std::string const& outputPath, int
             outFile.write(reinterpret_cast<const char*>(V9), sizeof(V9));
             outFile.write(reinterpret_cast<const char*>(V8), sizeof(V8));
         }
+    }
+
+    if (heightHeader.flags & MAP_HEIGHT_HAS_FLIGHT_BOUNDS)
+    {
+        outFile.write(reinterpret_cast<char*>(flight_box_max), sizeof(flight_box_max));
+        outFile.write(reinterpret_cast<char*>(flight_box_min), sizeof(flight_box_min));
     }
 
     // Store liquid data if need
@@ -1040,9 +1082,8 @@ void ExtractMaps(uint32 build)
 
     printf("Extracting maps...\n");
 
-    uint32 map_count = ReadMapDBC();
+    ReadMapDBC();
 
-    ReadAreaTableDBC();
     ReadLiquidTypeTableDBC();
 
     std::string path = output_path;
@@ -1052,9 +1093,9 @@ void ExtractMaps(uint32 build)
     std::set<std::string> wmoList;
 
     printf("Convert map files\n");
-    for (uint32 z = 0; z < map_count; ++z)
+    for (std::size_t z = 0; z < map_ids.size(); ++z)
     {
-        printf("Extract %s (%d/%u)                  \n", map_ids[z].name, z+1, map_count);
+        printf("Extract %s (" SZFMTD "/" SZFMTD ")                  \n", map_ids[z].name, z+1, map_ids.size());
         // Loadup map grid data
         storagePath = Trinity::StringFormat("World\\Maps\\%s\\%s.wdt", map_ids[z].name, map_ids[z].name);
         ChunkedFile wdt;
@@ -1098,8 +1139,6 @@ void ExtractMaps(uint32 build)
     }
 
     printf("\n");
-    delete[] areas;
-    delete[] map_ids;
 }
 
 bool ExtractFile(HANDLE fileInArchive, std::string filename)
@@ -1146,8 +1185,7 @@ void ExtractDBFilesClient(int l)
     while (fileName)
     {
         std::string filename = fileName;
-        if (CascOpenFile(CascStorage, (filename = (filename + ".db2")).c_str(), WowLocaleToCascLocaleFlags[l], 0, &dbcFile) ||
-            CascOpenFile(CascStorage, (filename = (filename.substr(0, filename.length() - 4) + ".dbc")).c_str(), WowLocaleToCascLocaleFlags[l], 0, &dbcFile))
+        if (CascOpenFile(CascStorage, filename.c_str(), WowLocaleToCascLocaleFlags[l], 0, &dbcFile))
         {
             filename = outputPath + filename.substr(filename.rfind('\\') + 1);
 
@@ -1161,6 +1199,79 @@ void ExtractDBFilesClient(int l)
             printf("Unable to open file %s in the archive for locale %s: %s\n", fileName, localeNames[l], HumanReadableCASCError(GetLastError()));
 
         fileName = DBFilesClientList[++index];
+    }
+
+    printf("Extracted %u files\n\n", count);
+}
+
+void ExtractGameTables()
+{
+    printf("Extracting game tables...\n");
+
+    std::string outputPath = output_path;
+    outputPath += "/gt/";
+
+    CreateDir(outputPath);
+
+    printf("output path %s\n", outputPath.c_str());
+
+    char const* GameTables[] =
+    {
+        "GameTables\\ArmorMitigationByLvl.txt",
+        "GameTables\\artifactLevelXP.txt",
+        "GameTables\\BarberShopCostBase.txt",
+        "GameTables\\BaseMp.txt",
+        "GameTables\\BattlePetTypeDamageMod.txt",
+        "GameTables\\battlePetXP.txt",
+        "GameTables\\ChallengeModeDamage.txt",
+        "GameTables\\ChallengeModeHealth.txt",
+        "GameTables\\CombatRatings.txt",
+        "GameTables\\CombatRatingsMultByILvl.txt",
+        "GameTables\\HonorLevel.txt",
+        "GameTables\\HpPerSta.txt",
+        "GameTables\\ItemSocketCostPerLevel.txt",
+        "GameTables\\NpcDamageByClass.txt",
+        "GameTables\\NpcDamageByClassExp1.txt",
+        "GameTables\\NpcDamageByClassExp2.txt",
+        "GameTables\\NpcDamageByClassExp3.txt",
+        "GameTables\\NpcDamageByClassExp4.txt",
+        "GameTables\\NpcDamageByClassExp5.txt",
+        "GameTables\\NpcDamageByClassExp6.txt",
+        "GameTables\\NpcManaCostScaler.txt",
+        "GameTables\\NpcTotalHp.txt",
+        "GameTables\\NpcTotalHpExp1.txt",
+        "GameTables\\NpcTotalHpExp2.txt",
+        "GameTables\\NpcTotalHpExp3.txt",
+        "GameTables\\NpcTotalHpExp4.txt",
+        "GameTables\\NpcTotalHpExp5.txt",
+        "GameTables\\NpcTotalHpExp6.txt",
+        "GameTables\\SandboxScaling.txt",
+        "GameTables\\SpellScaling.txt",
+        "GameTables\\xp.txt",
+        nullptr
+    };
+
+    uint32 index = 0;
+    uint32 count = 0;
+    char const* fileName = GameTables[index];
+    HANDLE dbcFile;
+    while (fileName)
+    {
+        std::string filename = fileName;
+        if (CascOpenFile(CascStorage, filename.c_str(), CASC_LOCALE_NONE, 0, &dbcFile))
+        {
+            filename = outputPath + filename.substr(filename.rfind('\\') + 1);
+
+            if (!boost::filesystem::exists(filename))
+                if (ExtractFile(dbcFile, filename))
+                    ++count;
+
+            CascCloseFile(dbcFile);
+        }
+        else
+            printf("Unable to open file %s in the archive: %s\n", fileName, HumanReadableCASCError(GetLastError()));
+
+        fileName = GameTables[++index];
     }
 
     printf("Extracted %u files\n\n", count);
@@ -1188,8 +1299,7 @@ bool OpenCascStorage(int locale)
 
 int main(int argc, char * arg[])
 {
-    printf("Map & DBC Extractor\n");
-    printf("===================\n");
+    Trinity::Banner::Show("Map & DBC Extractor", [](char const* text) { printf("%s\n", text); }, nullptr);
 
     boost::filesystem::path current(boost::filesystem::current_path());
     strcpy(input_path, current.string().c_str());
@@ -1248,6 +1358,13 @@ int main(int argc, char * arg[])
     {
         printf("No locales detected\n");
         return 0;
+    }
+
+    if (CONF_extract & EXTRACT_GT)
+    {
+        OpenCascStorage(FirstLocale);
+        ExtractGameTables();
+        CascCloseStorage(CascStorage);
     }
 
     if (CONF_extract & EXTRACT_MAP)

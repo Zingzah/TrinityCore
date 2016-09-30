@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,7 +35,7 @@ enum BattlefieldIDs
     BATTLEFIELD_BATTLEID_ASHRAN                  = 24       // Ashran
 };
 
-enum BattlefieldState
+enum BattlefieldState : int8
 {
     BATTLEFIELD_INACTIVE = 0,
     BATTLEFIELD_WARMUP = 1,
@@ -78,7 +78,7 @@ class BfGraveyard;
 typedef std::vector<BfGraveyard*> GraveyardVect;
 typedef std::map<ObjectGuid, time_t> PlayerTimerMap;
 
-class BfCapturePoint
+class TC_GAME_API BfCapturePoint
 {
     public:
         BfCapturePoint(Battlefield* bf);
@@ -107,14 +107,14 @@ class BfCapturePoint
         virtual void SendChangePhase();
 
         bool SetCapturePointData(GameObject* capturePoint);
+        bool DelCapturePoint();
         GameObject* GetCapturePointGo();
         uint32 GetCapturePointEntry() const { return m_capturePointEntry; }
 
         TeamId GetTeamId() const { return m_team; }
+        BattlefieldObjectiveStates GetObjectiveState() const { return m_State; }
 
     protected:
-        bool DelCapturePoint();
-
         // active Players in the area of the objective, 0 - alliance, 1 - horde
         GuidSet m_activePlayers[BG_TEAMS_COUNT];
 
@@ -146,7 +146,7 @@ class BfCapturePoint
         ObjectGuid m_capturePointGUID;
 };
 
-class BfGraveyard
+class TC_GAME_API BfGraveyard
 {
     public:
         BfGraveyard(Battlefield* Bf);
@@ -193,7 +193,7 @@ class BfGraveyard
         Battlefield* m_Bf;
 };
 
-class Battlefield : public ZoneScript
+class TC_GAME_API Battlefield : public ZoneScript
 {
     friend class BattlefieldMgr;
 
@@ -334,7 +334,7 @@ class Battlefield : public ZoneScript
         /// Return if we can use mount in battlefield
         bool CanFlyIn() { return !m_isActive; }
 
-        void SendAreaSpiritHealerQueryOpcode(Player* player, ObjectGuid guid);
+        void SendAreaSpiritHealerQueryOpcode(Player* player, ObjectGuid const& guid);
 
         void StartBattle();
         void EndBattle(bool endByTimer);

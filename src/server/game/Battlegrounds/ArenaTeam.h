@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -81,7 +81,7 @@ enum ArenaTeamTypes
     ARENA_TEAM_5v5      = 5
 };
 
-struct ArenaTeamMember
+struct TC_GAME_API ArenaTeamMember
 {
     ObjectGuid Guid;
     std::string Name;
@@ -109,7 +109,7 @@ struct ArenaTeamStats
 
 #define MAX_ARENA_SLOT 3                                    // 0..2 slots
 
-class ArenaTeam
+class TC_GAME_API ArenaTeam
 {
     public:
         ArenaTeam();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -46,7 +46,7 @@ struct PacketHeader
         uint32 SocketPort;
     };
 
-    char Direction[4];
+    uint32 Direction;
     uint32 ConnectionId;
     uint32 ArrivalTicks;
     uint32 OptionalDataSize;
@@ -68,6 +68,12 @@ PacketLog::~PacketLog()
         fclose(_file);
 
     _file = NULL;
+}
+
+PacketLog* PacketLog::instance()
+{
+    static PacketLog instance;
+    return &instance;
 }
 
 void PacketLog::Initialize()
@@ -104,7 +110,7 @@ void PacketLog::LogPacket(WorldPacket const& packet, Direction direction, boost:
     std::lock_guard<std::mutex> lock(_logPacketLock);
 
     PacketHeader header;
-    *reinterpret_cast<uint32*>(header.Direction) = direction == CLIENT_TO_SERVER ? 0x47534d43 : 0x47534d53;
+    header.Direction = direction == CLIENT_TO_SERVER ? 0x47534d43 : 0x47534d53;
     header.ConnectionId = connectionType;
     header.ArrivalTicks = getMSTime();
 

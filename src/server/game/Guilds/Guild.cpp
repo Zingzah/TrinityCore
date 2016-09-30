@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -368,7 +368,7 @@ void Guild::BankTab::LoadFromDB(Field* fields)
 
 bool Guild::BankTab::LoadItemFromDB(Field* fields)
 {
-    uint8 slotId = fields[23].GetUInt8();
+    uint8 slotId = fields[42].GetUInt8();
     ObjectGuid::LowType itemGuid = fields[0].GetUInt64();
     uint32 itemEntry = fields[1].GetUInt32();
     if (slotId >= GUILD_BANK_MAX_SLOTS)
@@ -1391,11 +1391,11 @@ void Guild::HandleSetAchievementTracking(WorldSession* session, std::set<uint32>
 
         for (uint32 achievementId : achievementIds)
         {
-            if (AchievementEntry const* achievement = sAchievementMgr->GetAchievement(achievementId))
+            if (AchievementEntry const* achievement = sAchievementStore.LookupEntry(achievementId))
             {
-                if (AchievementCriteriaTree const* tree = sAchievementMgr->GetAchievementCriteriaTree(achievement->CriteriaTree))
+                if (CriteriaTree const* tree = sCriteriaMgr->GetCriteriaTree(achievement->CriteriaTree))
                 {
-                    sAchievementMgr->WalkCriteriaTree(tree, [&criteriaIds](AchievementCriteriaTree const* node)
+                    CriteriaMgr::WalkCriteriaTree(tree, [&criteriaIds](CriteriaTree const* node)
                     {
                         if (node->Criteria)
                             criteriaIds.insert(node->Criteria->ID);
@@ -2159,10 +2159,9 @@ void Guild::SendLoginInfo(WorldSession* session)
     }
 
     for (GuildPerkSpellsEntry const* entry : sGuildPerkSpellsStore)
-        if (entry->GuildLevel <= GetLevel())
-            player->LearnSpell(entry->SpellID, true);
+        player->LearnSpell(entry->SpellID, true);
 
-    m_achievementMgr.SendAllAchievementData(player);
+    m_achievementMgr.SendAllData(player);
 
     WorldPackets::Guild::GuildMemberDailyReset packet; // tells the client to request bank withdrawal limit
     player->GetSession()->SendPacket(packet.Write());
@@ -2395,7 +2394,7 @@ void Guild::LoadBankTabFromDB(Field* fields)
 
 bool Guild::LoadBankItemFromDB(Field* fields)
 {
-    uint8 tabId = fields[22].GetUInt8();
+    uint8 tabId = fields[41].GetUInt8();
     if (tabId >= _GetPurchasedTabsSize())
     {
         TC_LOG_ERROR("guild", "Invalid tab for item (GUID: %u, id: #%u) in guild bank, skipped.",
@@ -2696,8 +2695,7 @@ void Guild::DeleteMember(ObjectGuid guid, bool isDisbanding, bool isKicked, bool
         player->SetGuildLevel(0);
 
         for (GuildPerkSpellsEntry const* entry : sGuildPerkSpellsStore)
-            if (entry->GuildLevel <= GetLevel())
-                player->RemoveSpell(entry->SpellID, false, false);
+            player->RemoveSpell(entry->SpellID, false, false);
     }
 
     _DeleteMemberFromDB(guid.GetCounter());
@@ -3216,21 +3214,17 @@ void Guild::_SendBankContentUpdate(uint8 tabId, SlotIds slots) const
 
             if (tabItem)
             {
-                uint32 enchants = 0;
-                for (uint32 ench = 0; ench < MAX_ENCHANTMENT_SLOT; ++ench)
-                    if (tabItem->GetEnchantmentId(EnchantmentSlot(ench)))
-                        ++enchants;
-
-                itemInfo.SocketEnchant.reserve(enchants);
-                for (uint32 ench = 0; ench < MAX_ENCHANTMENT_SLOT; ++ench)
+                uint8 i = 0;
+                for (ItemDynamicFieldGems const& gemData : tabItem->GetGems())
                 {
-                    if (uint32 enchantId = tabItem->GetEnchantmentId(EnchantmentSlot(ench)))
+                    if (gemData.ItemId)
                     {
-                        WorldPackets::Guild::GuildBankItemInfo::GuildBankSocketEnchant socketEnchant;
-                        socketEnchant.SocketEnchantID = int32(enchantId);
-                        socketEnchant.SocketIndex = int32(ench);
-                        itemInfo.SocketEnchant.push_back(socketEnchant);
+                        WorldPackets::Item::ItemGemInstanceData gem;
+                        gem.Slot = i;
+                        gem.Item.Initialize(&gemData);
+                        itemInfo.SocketEnchant.push_back(gem);
                     }
+                    ++i;
                 }
             }
 
@@ -3244,8 +3238,6 @@ void Guild::_SendBankContentUpdate(uint8 tabId, SlotIds slots) const
                     packet.WithdrawalsRemaining = int32(_GetMemberRemainingSlots(itr->second, tabId));
                     player->GetSession()->SendPacket(packet.Write());
                 }
-
-        TC_LOG_DEBUG("guild", "WORLD: Sent SMSG_GUILD_BANK_QUERY_RESULTS");
     }
 }
 
@@ -3304,21 +3296,17 @@ void Guild::SendBankList(WorldSession* session, uint8 tabId, bool fullUpdate) co
                     itemInfo.OnUseEnchantmentID = 0/*int32(tabItem->GetItemSuffixFactor())*/;
                     itemInfo.Flags = 0;
 
-                    uint32 enchants = 0;
-                    for (uint32 ench = 0; ench < MAX_ENCHANTMENT_SLOT; ++ench)
-                        if (tabItem->GetEnchantmentId(EnchantmentSlot(ench)))
-                            ++enchants;
-
-                    itemInfo.SocketEnchant.reserve(enchants);
-                    for (uint32 ench = 0; ench < MAX_ENCHANTMENT_SLOT; ++ench)
+                    uint8 i = 0;
+                    for (ItemDynamicFieldGems const& gemData : tabItem->GetGems())
                     {
-                        if (uint32 enchantId = tabItem->GetEnchantmentId(EnchantmentSlot(ench)))
+                        if (gemData.ItemId)
                         {
-                            WorldPackets::Guild::GuildBankItemInfo::GuildBankSocketEnchant socketEnchant;
-                            socketEnchant.SocketEnchantID = int32(enchantId);
-                            socketEnchant.SocketIndex = int32(ench);
-                            itemInfo.SocketEnchant.push_back(socketEnchant);
+                            WorldPackets::Item::ItemGemInstanceData gem;
+                            gem.Slot = i;
+                            gem.Item.Initialize(&gemData);
+                            itemInfo.SocketEnchant.push_back(gem);
                         }
+                        ++i;
                     }
 
                     itemInfo.Locked = false;
@@ -3330,8 +3318,6 @@ void Guild::SendBankList(WorldSession* session, uint8 tabId, bool fullUpdate) co
     }
 
     session->SendPacket(packet.Write());
-
-    TC_LOG_DEBUG("guild", "WORLD: Sent SMSG_GUILD_BANK_QUERY_RESULTS");
 }
 
 void Guild::SendGuildRanksUpdate(ObjectGuid setterGuid, ObjectGuid targetGuid, uint32 rank)
@@ -3384,9 +3370,9 @@ bool Guild::HasAchieved(uint32 achievementId) const
     return m_achievementMgr.HasAchieved(achievementId);
 }
 
-void Guild::UpdateAchievementCriteria(AchievementCriteriaTypes type, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit* unit, Player* player)
+void Guild::UpdateCriteria(CriteriaTypes type, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit* unit, Player* player)
 {
-    m_achievementMgr.UpdateAchievementCriteria(type, miscValue1, miscValue2, miscValue3, unit, player);
+    m_achievementMgr.UpdateCriteria(type, miscValue1, miscValue2, miscValue3, unit, player);
 }
 
 void Guild::HandleNewsSetSticky(WorldSession* session, uint32 newsId, bool sticky)

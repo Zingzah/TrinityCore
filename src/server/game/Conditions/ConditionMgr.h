@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -27,6 +27,7 @@ class Unit;
 class WorldObject;
 class LootTemplate;
 struct Condition;
+struct PlayerConditionEntry;
 
 /*! Documentation on implementing a new ConditionType:
     Step 1: Check for the lowest free ID. Look for CONDITION_UNUSED_XX in the enum.
@@ -89,7 +90,8 @@ enum ConditionTypes
     CONDITION_REALM_ACHIEVEMENT     = 39,                   // achievement_id   0              0                  true if realm achievement is complete
     CONDITION_IN_WATER              = 40,                   // 0                0              0                  true if unit in water
     CONDITION_TERRAIN_SWAP          = 41,                   // terrainSwap      0              0                  true if object is in terrainswap
-    CONDITION_MAX                   = 42                    // MAX
+    CONDITION_STAND_STATE           = 42,                   // stateType        state          0                  true if unit matches specified sitstate (0,x: has exactly state x; 1,0: any standing state; 1,1: any sitting state;)
+    CONDITION_MAX                   = 43                    // MAX
 };
 
 /*! Documentation on implementing a new ConditionSourceType:
@@ -177,7 +179,7 @@ enum MaxConditionTargets
     MAX_CONDITION_TARGETS = 3
 };
 
-struct ConditionSourceInfo
+struct TC_GAME_API ConditionSourceInfo
 {
     WorldObject* mConditionTargets[MAX_CONDITION_TARGETS]; // an array of targets available for conditions
     Condition const* mLastFailedCondition;
@@ -190,7 +192,7 @@ struct ConditionSourceInfo
     }
 };
 
-struct Condition
+struct TC_GAME_API Condition
 {
     ConditionSourceType     SourceType;        //SourceTypeOrReferenceId
     uint32                  SourceGroup;
@@ -242,18 +244,14 @@ typedef std::unordered_map<uint32, ConditionsByEntryMap> ConditionEntriesByCreat
 typedef std::unordered_map<std::pair<int32, uint32 /*SAI source_type*/>, ConditionsByEntryMap> SmartEventConditionContainer;
 typedef std::unordered_map<uint32, ConditionContainer> ConditionReferenceContainer;//only used for references
 
-class ConditionMgr
+class TC_GAME_API ConditionMgr
 {
     private:
         ConditionMgr();
         ~ConditionMgr();
 
     public:
-        static ConditionMgr* instance()
-        {
-            static ConditionMgr instance;
-            return &instance;
-        }
+        static ConditionMgr* instance();
 
         void LoadConditions(bool isReload = false);
         bool isConditionTypeValid(Condition* cond) const;
@@ -273,6 +271,8 @@ class ConditionMgr
         bool IsObjectMeetingSmartEventConditions(int64 entryOrGuid, uint32 eventId, uint32 sourceType, Unit* unit, WorldObject* baseObject) const;
         bool IsObjectMeetingVendorItemConditions(uint32 creatureId, uint32 itemId, Player* player, Creature* vendor) const;
 
+        static bool IsPlayerMeetingCondition(Player const* player, PlayerConditionEntry const* condition);
+
         struct ConditionTypeInfo
         {
             char const* Name;
@@ -289,7 +289,6 @@ class ConditionMgr
         bool addToGossipMenus(Condition* cond) const;
         bool addToGossipMenuItems(Condition* cond) const;
         bool addToSpellImplicitTargetConditions(Condition* cond) const;
-        bool addToTerrainSwaps(Condition* cond) const;
         bool addToPhases(Condition* cond) const;
         bool IsObjectMeetToConditionList(ConditionSourceInfo& sourceInfo, ConditionContainer const& conditions) const;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -38,7 +38,7 @@ namespace MMAP
 
     typedef std::set<uint32> TerrainSet;
 
-    struct NavMeshHolder
+    struct TC_COMMON_API NavMeshHolder
     {
         // Pre-built navMesh
         dtNavMesh* navMesh;
@@ -49,7 +49,7 @@ namespace MMAP
         MMapTileSet loadedTileRefs;
     };
 
-    struct PhasedTile
+    struct TC_COMMON_API PhasedTile
     {
         unsigned char* data;
         MmapTileHeader fileHeader;
@@ -62,13 +62,16 @@ namespace MMAP
 
     typedef std::unordered_map<uint32, TerrainSet> TerrainSetMap;
 
-    class MMapData
+    class TC_COMMON_API MMapData
     {
     public:
         MMapData(dtNavMesh* mesh, uint32 mapId);
         ~MMapData();
 
         dtNavMesh* GetNavMesh(TerrainSet swaps);
+
+        void AddBaseTile(uint32 packedGridPos, unsigned char* data, MmapTileHeader const& fileHeader, int32 dataSize);
+        void DeleteBaseTile(uint32 packedGridPos);
 
         // we have to use single dtNavMeshQuery for every instance, since those are not thread safe
         NavMeshQuerySet navMeshQueries;     // instanceId to query
@@ -90,7 +93,7 @@ namespace MMAP
 
     // singleton class
     // holds all all access to mmap loading unloading and meshes
-    class MMapManager
+    class TC_COMMON_API MMapManager
     {
         public:
             MMapManager() : loadedTiles(0), thread_safe_environment(true) {}
@@ -107,7 +110,7 @@ namespace MMAP
             dtNavMesh const* GetNavMesh(uint32 mapId, TerrainSet swaps);
 
             uint32 getLoadedTilesCount() const { return loadedTiles; }
-            uint32 getLoadedMapsCount() const { return loadedMMaps.size(); }
+            uint32 getLoadedMapsCount() const { return uint32(loadedMMaps.size()); }
 
             typedef std::unordered_map<uint32, std::vector<uint32>> PhaseChildMapContainer;
             void LoadPhaseTiles(PhaseChildMapContainer::const_iterator phasedMapData, int32 x, int32 y);

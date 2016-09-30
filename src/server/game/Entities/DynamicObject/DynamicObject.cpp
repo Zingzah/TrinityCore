@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -17,7 +17,6 @@
  */
 
 #include "Common.h"
-#include "UpdateMask.h"
 #include "Opcodes.h"
 #include "World.h"
 #include "ObjectAccessor.h"
@@ -28,7 +27,7 @@
 #include "Transport.h"
 
 DynamicObject::DynamicObject(bool isWorldObject) : WorldObject(isWorldObject),
-    _aura(NULL), _removedAura(NULL), _caster(NULL), _duration(0), _isViewpoint(false)
+    _aura(NULL), _removedAura(NULL), _caster(NULL), _duration(0), _spellXSpellVisualId(0), _isViewpoint(false)
 {
     m_objectType |= TYPEMASK_DYNAMICOBJECT;
     m_objectTypeId = TYPEID_DYNAMICOBJECT;
@@ -80,8 +79,9 @@ void DynamicObject::RemoveFromWorld()
     }
 }
 
-bool DynamicObject::CreateDynamicObject(ObjectGuid::LowType guidlow, Unit* caster, SpellInfo const* spell, Position const& pos, float radius, DynamicObjectType type)
+bool DynamicObject::CreateDynamicObject(ObjectGuid::LowType guidlow, Unit* caster, SpellInfo const* spell, Position const& pos, float radius, DynamicObjectType type, uint32 spellXSpellVisualId)
 {
+    _spellXSpellVisualId = spellXSpellVisualId;
     SetMap(caster->GetMap());
     Relocate(pos);
     if (!IsPositionValid())
@@ -93,10 +93,14 @@ bool DynamicObject::CreateDynamicObject(ObjectGuid::LowType guidlow, Unit* caste
     WorldObject::_Create(ObjectGuid::Create<HighGuid::DynamicObject>(GetMapId(), spell->Id, guidlow));
     SetPhaseMask(caster->GetPhaseMask(), false);
 
+    uint32 spellVisual = 0;
+    if (SpellXSpellVisualEntry const* visual = sSpellXSpellVisualStore.LookupEntry(spellXSpellVisualId))
+        spellVisual = visual->SpellVisualID[0];
+
     SetEntry(spell->Id);
     SetObjectScale(1.0f);
     SetGuidValue(DYNAMICOBJECT_CASTER, caster->GetGUID());
-    SetUInt32Value(DYNAMICOBJECT_BYTES, spell->GetSpellVisual(GetMap()->GetDifficultyID()) | (type << 28));
+    SetUInt32Value(DYNAMICOBJECT_BYTES, spellVisual | (type << 28));
     SetUInt32Value(DYNAMICOBJECT_SPELLID, spell->Id);
     SetFloatValue(DYNAMICOBJECT_RADIUS, radius);
     SetUInt32Value(DYNAMICOBJECT_CASTTIME, getMSTime());

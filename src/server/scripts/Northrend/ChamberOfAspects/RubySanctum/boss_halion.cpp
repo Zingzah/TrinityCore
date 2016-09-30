@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -256,21 +256,9 @@ struct generic_halionAI : public BossAI
         }
     }
 
-    bool CheckInRoom() override
-    {
-        // Rough radius, it is not an exactly perfect circle
-        if (me->GetDistance2d(HalionControllerSpawnPos.GetPositionX(), HalionControllerSpawnPos.GetPositionY()) > 48.5f)
-        {
-            if (Creature* controller = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_HALION_CONTROLLER)))
-                controller->AI()->EnterEvadeMode();
-            return false;
-        }
-        return true;
-    }
-
     void UpdateAI(uint32 diff) override
     {
-        if (!UpdateVictim() || !CheckInRoom() || me->HasUnitState(UNIT_STATE_CASTING))
+        if (!UpdateVictim() || me->HasUnitState(UNIT_STATE_CASTING))
             return;
 
         events.Update(diff);
@@ -323,11 +311,15 @@ class boss_halion : public CreatureScript
                 me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason why) override
             {
+                if (why == EVADE_REASON_BOUNDARY)
+                    if (Creature* controller = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_HALION_CONTROLLER)))
+                        controller->AI()->EnterEvadeMode();
+
                 // Phase 1: We always can evade. Phase 2 & 3: We can evade if and only if the controller tells us to.
                 if (events.IsInPhase(PHASE_ONE) || _canEvade)
-                    generic_halionAI::EnterEvadeMode();
+                    generic_halionAI::EnterEvadeMode(why);
             }
 
             void EnterCombat(Unit* who) override
@@ -359,11 +351,11 @@ class boss_halion : public CreatureScript
 
                 if (Creature* twilightHalion = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_TWILIGHT_HALION)))
                     if (twilightHalion->IsAlive())
-                        twilightHalion->Kill(twilightHalion);
+                        twilightHalion->KillSelf();
 
                 if (Creature* controller = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_HALION_CONTROLLER)))
                     if (controller->IsAlive())
-                        controller->Kill(controller);
+                        controller->KillSelf();
             }
 
             Position const* GetMeteorStrikePosition() const { return &_meteorStrikePos; }
@@ -497,7 +489,7 @@ class boss_twilight_halion : public CreatureScript
             }
 
             // Never evade
-            void EnterEvadeMode() override { }
+            void EnterEvadeMode(EvadeReason /*why*/) override { }
 
             void KilledUnit(Unit* victim) override
             {
@@ -522,7 +514,7 @@ class boss_twilight_halion : public CreatureScript
 
                 if (Creature* controller = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_HALION_CONTROLLER)))
                     if (controller->IsAlive())
-                        controller->Kill(controller);
+                        controller->KillSelf();
 
                 instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
             }
@@ -1022,7 +1014,7 @@ class npc_meteor_strike_initial : public CreatureScript
             }
 
             void UpdateAI(uint32 /*diff*/) override { }
-            void EnterEvadeMode() override { }
+            void EnterEvadeMode(EvadeReason /*why*/) override { }
         private:
             InstanceScript* _instance;
             std::list<Creature*> _meteorList;
@@ -1148,7 +1140,7 @@ class npc_meteor_strike_flame : public CreatureScript
                     flame->AI()->SetGUID(_rootOwnerGuid);
             }
 
-            void EnterEvadeMode() override { }
+            void EnterEvadeMode(EvadeReason /*why*/) override { }
 
         private:
             InstanceScript* _instance;
@@ -1361,8 +1353,10 @@ class go_twilight_portal : public GameObjectScript
                 }
             }
 
-            bool GossipHello(Player* player) override
+            bool GossipHello(Player* player, bool isUse) override
             {
+                if (!isUse)
+                    return true;
                 if (_spellId != 0)
                     player->CastSpell(player, _spellId, true);
                 return true;

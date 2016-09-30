@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -222,9 +222,8 @@ void Arena::EndBattleground(uint32 winner)
                 {
                     // update achievement BEFORE personal rating update
                     uint32 rating = player->GetArenaPersonalRating(winnerArenaTeam->GetSlot());
-                    player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA, rating ? rating : 1);
-                    player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_ARENA, GetMapId());
-                    player->ModifyCurrency(CURRENCY_TYPE_CONQUEST_META_ARENA, sWorld->getIntConfig(CONFIG_CURRENCY_CONQUEST_POINTS_ARENA_REWARD));
+                    player->UpdateCriteria(CRITERIA_TYPE_WIN_RATED_ARENA, rating ? rating : 1);
+                    player->UpdateCriteria(CRITERIA_TYPE_WIN_ARENA, GetMapId());
 
                     // Last standing - Rated 5v5 arena & be solely alive player
                     if (GetArenaType() == ARENA_TYPE_5v5 && aliveWinners == 1 && player->IsAlive())
@@ -235,7 +234,7 @@ void Arena::EndBattleground(uint32 winner)
                         guildAwarded = true;
                         if (ObjectGuid::LowType guildId = GetBgMap()->GetOwnerGuildId(player->GetBGTeam()))
                             if (Guild* guild = sGuildMgr->GetGuildById(guildId))
-                                guild->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA, std::max<uint32>(winnerArenaTeam->GetRating(), 1), 0, 0, NULL, player);
+                                guild->UpdateCriteria(CRITERIA_TYPE_WIN_RATED_ARENA, std::max<uint32>(winnerArenaTeam->GetRating(), 1), 0, 0, NULL, player);
                     }
 
                     winnerArenaTeam->MemberWon(player, loserMatchmakerRating, winnerMatchmakerChange);
@@ -245,7 +244,7 @@ void Arena::EndBattleground(uint32 winner)
                     loserArenaTeam->MemberLost(player, winnerMatchmakerRating, loserMatchmakerChange);
 
                     // Arena lost => reset the win_rated_arena having the "no_lose" condition
-                    player->ResetAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA, ACHIEVEMENT_CRITERIA_CONDITION_NO_LOSE);
+                    player->ResetCriteria(CRITERIA_TYPE_WIN_RATED_ARENA, CRITERIA_CONDITION_NO_LOSE);
                 }
             }
 

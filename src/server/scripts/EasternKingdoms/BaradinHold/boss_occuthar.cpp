@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -73,9 +73,9 @@ class boss_occuthar : public CreatureScript
                 events.ScheduleEvent(EVENT_BERSERK, 5 * MINUTE * IN_MILLISECONDS);
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason why) override
             {
-                BossAI::EnterEvadeMode();
+                BossAI::EnterEvadeMode(why);
                 instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
                 _DespawnAtEvade();
             }
@@ -188,7 +188,7 @@ class npc_eyestalk : public CreatureScript
                 }
             }
 
-            void EnterEvadeMode() override { } // Never evade
+            void EnterEvadeMode(EvadeReason /*why*/) override { } // Never evade
 
         private:
             InstanceScript* _instance;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -408,12 +408,12 @@ void SmartAI::MovementInform(uint32 MovementType, uint32 Data)
     MovepointReached(Data);
 }
 
-void SmartAI::EnterEvadeMode()
+void SmartAI::EnterEvadeMode(EvadeReason /*why*/)
 {
     if (!me->IsAlive() || me->IsInEvadeMode())
         return;
 
-    me->RemoveAllAurasExceptType(SPELL_AURA_CONTROL_VEHICLE, SPELL_AURA_CLONE_CASTER);
+    me->RemoveAurasOnEvade();
 
     me->AddUnitState(UNIT_STATE_EVADE);
     me->DeleteThreatList();
@@ -466,6 +466,9 @@ bool SmartAI::CanAIAttack(const Unit* /*who*/) const
 
 bool SmartAI::AssistPlayerInCombat(Unit* who)
 {
+    if (me->HasReactState(REACT_PASSIVE))
+        return false;
+
     if (!who || !who->GetVictim())
         return false;
 
@@ -837,7 +840,7 @@ void SmartGameObjectAI::Reset()
 }
 
 // Called when a player opens a gossip dialog with the gameobject.
-bool SmartGameObjectAI::GossipHello(Player* player)
+bool SmartGameObjectAI::GossipHello(Player* player, bool /*isUse*/)
 {
     TC_LOG_DEBUG("scripts.ai", "SmartGameObjectAI::GossipHello");
     GetScript()->ProcessEventsFor(SMART_EVENT_GOSSIP_HELLO, player, 0, 0, false, NULL, go);

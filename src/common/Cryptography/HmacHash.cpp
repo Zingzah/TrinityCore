@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -62,5 +62,5 @@ uint8* HmacHash<HashCreator, DigestLength>::ComputeHash(BigNumber* bn)
     return _digest;
 }
 
-template class HmacHash<EVP_sha1, SHA_DIGEST_LENGTH>;
-template class HmacHash<EVP_sha256, SHA256_DIGEST_LENGTH>;
+template class TC_COMMON_API HmacHash<EVP_sha1, SHA_DIGEST_LENGTH>;
+template class TC_COMMON_API HmacHash<EVP_sha256, SHA256_DIGEST_LENGTH>;

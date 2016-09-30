@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -217,10 +217,10 @@ public:
 
         if (!*args)
             argstr = (chr->isTaxiCheater()) ? "off" : "on";
-        
+
 
         if (argstr == "off")
-            
+
         {
             chr->SetTaxiCheater(false);
             handler->PSendSysMessage(LANG_YOU_REMOVE_TAXIS, handler->GetNameLink(chr).c_str());
@@ -272,7 +272,7 @@ public:
                 ChatHandler(chr->GetSession()).PSendSysMessage(LANG_YOURS_EXPLORE_SET_NOTHING, handler->GetNameLink().c_str());
         }
 
-        for (uint8 i = 0; i < PLAYER_EXPLORED_ZONES_SIZE; ++i)
+        for (uint16 i = 0; i < PLAYER_EXPLORED_ZONES_SIZE; ++i)
         {
             if (flag != 0)
                 handler->GetSession()->GetPlayer()->SetFlag(PLAYER_EXPLORED_ZONES_1+i, 0xFFFFFFFF);

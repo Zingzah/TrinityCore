@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2010 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -17,13 +17,13 @@
  */
 
 #include "Common.h"
-#include "AchievementMgr.h"
+#include "CriteriaHandler.h"
 #include "CharacterDatabaseCleaner.h"
+#include "DB2Stores.h"
 #include "World.h"
 #include "Database/DatabaseEnv.h"
 #include "SpellMgr.h"
 #include "SpellInfo.h"
-#include "DBCStores.h"
 
 void CharacterDatabaseCleaner::CleanDatabase()
 {
@@ -109,7 +109,7 @@ void CharacterDatabaseCleaner::CheckUnique(const char* column, const char* table
 
 bool CharacterDatabaseCleaner::AchievementProgressCheck(uint32 criteria)
 {
-    return sAchievementMgr->GetAchievementCriteria(criteria) != nullptr;
+    return sCriteriaMgr->GetCriteria(criteria) != nullptr;
 }
 
 void CharacterDatabaseCleaner::CleanCharacterAchievementProgress()
@@ -149,7 +149,7 @@ bool CharacterDatabaseCleaner::TalentCheck(uint32 talent_id)
 
 void CharacterDatabaseCleaner::CleanCharacterTalent()
 {
-    CharacterDatabase.DirectPExecute("DELETE FROM character_talent WHERE spec > %u", MAX_TALENT_GROUPS);
+    CharacterDatabase.DirectPExecute("DELETE FROM character_talent WHERE spec > %u", MAX_SPECIALIZATIONS);
     CheckUnique("spell", "character_talent", &TalentCheck);
 }
 

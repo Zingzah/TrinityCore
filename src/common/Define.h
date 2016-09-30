@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -89,6 +89,51 @@
 #  define ATTR_DEPRECATED
 #endif //COMPILER == COMPILER_GNU
 
+#ifdef TRINITY_API_USE_DYNAMIC_LINKING
+#  if COMPILER == COMPILER_MICROSOFT
+#    define TC_API_EXPORT __declspec(dllexport)
+#    define TC_API_IMPORT __declspec(dllimport)
+#  elif COMPILER == COMPILER_GNU
+#    define TC_API_EXPORT __attribute__((visibility("default")))
+#    define TC_API_IMPORT
+#  else
+#    error compiler not supported!
+#  endif
+#else
+#  define TC_API_EXPORT
+#  define TC_API_IMPORT
+#endif
+
+#ifdef TRINITY_API_EXPORT_COMMON
+#  define TC_COMMON_API TC_API_EXPORT
+#else
+#  define TC_COMMON_API TC_API_IMPORT
+#endif
+
+#ifdef TRINITY_API_EXPORT_PROTO
+#  define TC_PROTO_API TC_API_EXPORT
+#else
+#  define TC_PROTO_API TC_API_IMPORT
+#endif
+
+#ifdef TRINITY_API_EXPORT_DATABASE
+#  define TC_DATABASE_API TC_API_EXPORT
+#else
+#  define TC_DATABASE_API TC_API_IMPORT
+#endif
+
+#ifdef TRINITY_API_EXPORT_SHARED
+#  define TC_SHARED_API TC_API_EXPORT
+#else
+#  define TC_SHARED_API TC_API_IMPORT
+#endif
+
+#ifdef TRINITY_API_EXPORT_GAME
+#  define TC_GAME_API TC_API_EXPORT
+#else
+#  define TC_GAME_API TC_API_IMPORT
+#endif
+
 #define UI64FMTD "%" PRIu64
 #define UI64LIT(N) UINT64_C(N)
 
@@ -108,18 +153,12 @@ typedef uint8_t uint8;
 
 enum DBCFormer
 {
-    FT_NA = 'x',                                            //not used or unknown, 4 byte size
-    FT_NA_BYTE = 'X',                                       //not used or unknown, byte
-    FT_STRING = 's',                                        //char*
-    FT_STRING_NOT_LOCALIZED = 'S',                          //char* but without locale in DB2
-    FT_FLOAT = 'f',                                         //float
-    FT_INT = 'i',                                           //uint32
-    FT_BYTE = 'b',                                          //uint8
-    FT_LONG = 'l',                                          //uint64
-    FT_SORT = 'd',                                          //sorted by this field, field is not included
-    FT_IND = 'n',                                           //the same, but parsed to data
-    FT_SQL_PRESENT = 'p',                                   //Used in sql format to mark column present in sql dbc
-    FT_SQL_ABSENT = 'a'                                     //Used in sql format to mark column absent in sql dbc
+    FT_STRING = 's',                                        // LocalizedString*
+    FT_STRING_NOT_LOCALIZED = 'S',                          // char*
+    FT_FLOAT = 'f',                                         // float
+    FT_INT = 'i',                                           // uint32
+    FT_BYTE = 'b',                                          // uint8
+    FT_SHORT = 'h'                                          // uint16
 };
 
 #endif //TRINITY_DEFINE_H

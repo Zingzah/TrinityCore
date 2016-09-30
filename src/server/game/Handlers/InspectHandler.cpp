@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -50,7 +50,7 @@ void WorldSession::HandleInspectOpcode(WorldPackets::Inspect::Inspect& inspect)
     inspectResult.ClassID = player->getClass();
     inspectResult.GenderID = player->GetByteValue(PLAYER_BYTES_3, PLAYER_BYTES_3_OFFSET_GENDER);
 
-    if (sWorld->getBoolConfig(CONFIG_TALENTS_INSPECTING) || GetPlayer()->IsGameMaster())
+    if (GetPlayer()->CanBeGameMaster() || sWorld->getIntConfig(CONFIG_TALENTS_INSPECTING) + (GetPlayer()->GetTeamId() == player->GetTeamId()) > 1)
     {
         PlayerTalentMap const* talents = player->GetTalentMap(player->GetActiveTalentGroup());
         for (PlayerTalentMap::value_type const& v : *talents)
@@ -58,9 +58,6 @@ void WorldSession::HandleInspectOpcode(WorldPackets::Inspect::Inspect& inspect)
             if (v.second != PLAYERSPELL_REMOVED)
                 inspectResult.Talents.push_back(v.first);
         }
-
-        for (uint8 i = 0; i < MAX_GLYPH_SLOT_INDEX; ++i)
-            inspectResult.Glyphs.push_back(player->GetGlyph(player->GetActiveTalentGroup(), i));
     }
 
     if (Guild* guild = sGuildMgr->GetGuildById(player->GetGuildId()))
@@ -72,7 +69,7 @@ void WorldSession::HandleInspectOpcode(WorldPackets::Inspect::Inspect& inspect)
     }
 
     inspectResult.InspecteeGUID = inspect.Target;
-    inspectResult.SpecializationID = player->GetSpecId(player->GetActiveTalentGroup());
+    inspectResult.SpecializationID = player->GetUInt32Value(PLAYER_FIELD_CURRENT_SPEC_ID);
 
     SendPacket(inspectResult.Write());
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -333,7 +333,7 @@ void BattlePetMgr::AddPet(uint32 species, uint32 creatureId, uint16 breed, uint8
     updates.push_back(pet);
     SendUpdates(updates, true);
 
-    _owner->GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_OWN_BATTLE_PET, species);
+    _owner->GetPlayer()->UpdateCriteria(CRITERIA_TYPE_OWN_BATTLE_PET, species);
 }
 
 void BattlePetMgr::RemovePet(ObjectGuid guid)

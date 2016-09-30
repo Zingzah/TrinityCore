@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -627,7 +627,7 @@ void WorldSession::HandleTextEmoteOpcode(WorldPackets::Chat::CTextEmote& packet)
 
     Unit* unit = ObjectAccessor::GetUnit(*_player, packet.Target);
 
-    _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_DO_EMOTE, packet.SoundIndex, 0, 0, unit);
+    _player->UpdateCriteria(CRITERIA_TYPE_DO_EMOTE, packet.SoundIndex, 0, 0, unit);
 
     // Send scripted event call
     if (unit)
@@ -653,14 +653,12 @@ void WorldSession::SendChatPlayerNotfoundNotice(std::string const& name)
 
 void WorldSession::SendPlayerAmbiguousNotice(std::string const& name)
 {
-    WorldPacket data(SMSG_CHAT_PLAYER_AMBIGUOUS, name.size()+1);
-    data << name;
-    SendPacket(&data);
+    SendPacket(WorldPackets::Chat::ChatPlayerAmbiguous(name).Write());
 }
 
-void WorldSession::SendChatRestrictedNotice(ChatRestrictionType restriction)
+void WorldSession::SendChatRestricted(ChatRestrictionType restriction)
 {
-    WorldPacket data(SMSG_CHAT_RESTRICTED, 1);
-    data << uint8(restriction);
-    SendPacket(&data);
+    WorldPackets::Chat::ChatRestricted packet;
+    packet.Reason = restriction;
+    SendPacket(packet.Write());
 }

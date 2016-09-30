@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -21,17 +21,17 @@
 
 #include "Common.h"
 #include "WorldPacketCrypt.h"
-#include "ServerPktHeader.h"
 #include "Socket.h"
 #include "Util.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include "MPSCQueue.h"
 #include <chrono>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/buffer.hpp>
 
 using boost::asio::ip::tcp;
 struct z_stream_s;
+class EncryptablePacket;
 
 namespace WorldPackets
 {
@@ -41,36 +41,32 @@ namespace WorldPackets
         class AuthSession;
         class AuthContinuedSession;
         class ConnectToFailed;
+        class Ping;
     }
 }
 
 #pragma pack(push, 1)
 
-union ClientPktHeader
+struct PacketHeader
 {
-    struct
-    {
-        uint16 Size;
-        uint32 Command;
-    } Setup;
+    uint32 Size;
+    uint16 Command;
 
-    struct
-    {
-        uint32 Command : 13;
-        uint32 Size : 19;
-    } Normal;
-
-    static bool IsValidSize(uint32 size) { return size < 10240; }
-    static bool IsValidOpcode(uint32 opcode) { return opcode < NUM_OPCODE_HANDLERS; }
+    bool IsValidSize() { return Size < 10240; }
+    bool IsValidOpcode() { return Command < NUM_OPCODE_HANDLERS; }
 };
 
 #pragma pack(pop)
 
-class WorldSocket : public Socket<WorldSocket>
+class TC_GAME_API WorldSocket : public Socket<WorldSocket>
 {
     static std::string const ServerConnectionInitialize;
     static std::string const ClientConnectionInitialize;
     static uint32 const MinSizeForCompression;
+
+    static uint8 const AuthCheckSeed[16];
+    static uint8 const SessionKeySeed[16];
+    static uint8 const ContinuedSessionSeed[16];
 
     typedef Socket<WorldSocket> BaseSocket;
 
@@ -88,7 +84,7 @@ public:
 
     ConnectionType GetConnectionType() const { return _type; }
 
-    void SendAuthResponseError(uint8 code);
+    void SendAuthResponseError(uint32 code);
     void SetWorldSession(WorldSession* session);
 
 protected:
@@ -106,13 +102,14 @@ protected:
     ReadDataHandlerResult ReadDataHandler();
 private:
     void CheckIpCallback(PreparedQueryResult result);
+    void InitializeHandler(boost::system::error_code error, std::size_t transferedBytes);
 
     /// writes network.opcode log
     /// accessing WorldSession is not threadsafe, only do it when holding _worldSessionLock
     void LogOpcodeText(OpcodeClient opcode, std::unique_lock<std::mutex> const& guard) const;
     /// sends and logs network.opcode without accessing WorldSession
     void SendPacketAndLogOpcode(WorldPacket const& packet);
-    void WritePacketToBuffer(WorldPacket const& packet, MessageBuffer& buffer);
+    void WritePacketToBuffer(EncryptablePacket const& packet, MessageBuffer& buffer);
     uint32 CompressPacket(uint8* buffer, WorldPacket const& packet);
 
     void HandleSendAuthSession();
@@ -122,17 +119,17 @@ private:
     void HandleAuthContinuedSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthContinuedSession> authSession, PreparedQueryResult result);
     void LoadSessionPermissionsCallback(PreparedQueryResult result);
     void HandleConnectToFailed(WorldPackets::Auth::ConnectToFailed& connectToFailed);
-
-    bool HandlePing(WorldPacket& recvPacket);
-
-    void ExtractOpcodeAndSize(ClientPktHeader const* header, uint32& opcode, uint32& size) const;
+    bool HandlePing(WorldPackets::Auth::Ping& ping);
+    void HandleEnableEncryptionAck();
 
     ConnectionType _type;
+    uint64 _key;
 
-    uint32 _authSeed;
+    BigNumber _serverChallenge;
     WorldPacketCrypt _authCrypt;
     BigNumber _encryptSeed;
     BigNumber _decryptSeed;
+    BigNumber _sessionKey;
 
     std::chrono::steady_clock::time_point _LastPingTime;
     uint32 _OverSpeedPings;
@@ -143,12 +140,10 @@ private:
 
     MessageBuffer _headerBuffer;
     MessageBuffer _packetBuffer;
+    MPSCQueue<EncryptablePacket> _bufferQueue;
 
     z_stream_s* _compressionStream;
 
-    bool _initialized;
-
-    std::mutex _queryLock;
     PreparedQueryResultFuture _queryFuture;
     std::function<void(PreparedQueryResult&&)> _queryCallback;
     std::string _ipCountry;

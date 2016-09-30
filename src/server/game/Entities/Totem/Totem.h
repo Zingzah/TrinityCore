@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -27,15 +27,8 @@ enum TotemType
     TOTEM_ACTIVE     = 1,
     TOTEM_STATUE     = 2 // copied straight from MaNGOS, may need more implementation to work
 };
-// Some Totems cast spells that are not in creature DB
-enum TotemSpells
-{
-    // Totemic Wrath
-    SPELL_TOTEMIC_WRATH_TALENT  = 77746,
-    SPELL_TOTEMIC_WRATH         = 77747
-};
 
-class Totem : public Minion
+class TC_GAME_API Totem : public Minion
 {
     public:
         Totem(SummonPropertiesEntry const* properties, Unit* owner);

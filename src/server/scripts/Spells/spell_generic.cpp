@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -2710,6 +2710,48 @@ class spell_gen_profession_research : public SpellScriptLoader
         }
 };
 
+enum TrinketSpells
+{
+    SPELL_PVP_TRINKET_ALLIANCE  = 97403,
+    SPELL_PVP_TRINKET_HORDE     = 97404
+};
+
+class spell_gen_pvp_trinket : public SpellScriptLoader
+{
+    public:
+        spell_gen_pvp_trinket() : SpellScriptLoader("spell_gen_pvp_trinket") { }
+
+        class spell_gen_pvp_trinket_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gen_pvp_trinket_SpellScript);
+
+            void TriggerAnimation()
+            {
+                Player* caster = GetCaster()->ToPlayer();
+
+                switch (caster->GetTeam())
+                {
+                    case ALLIANCE:
+                        caster->CastSpell(caster, SPELL_PVP_TRINKET_ALLIANCE, TRIGGERED_FULL_MASK);
+                        break;
+                    case HORDE:
+                        caster->CastSpell(caster, SPELL_PVP_TRINKET_HORDE, TRIGGERED_FULL_MASK);
+                        break;
+                }
+            }
+
+            void Register() override
+            {
+                AfterCast += SpellCastFn(spell_gen_pvp_trinket_SpellScript::TriggerAnimation);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_gen_pvp_trinket_SpellScript();
+        }
+};
+
 class spell_gen_remove_flight_auras : public SpellScriptLoader
 {
     public:
@@ -4114,6 +4156,236 @@ public:
     }
 };
 
+enum LandmineKnockbackAchievement
+{
+    SPELL_LANDMINE_KNOCKBACK_ACHIEVEMENT = 57064
+};
+
+class spell_gen_landmine_knockback_achievement : public SpellScriptLoader
+{
+public:
+    spell_gen_landmine_knockback_achievement() : SpellScriptLoader("spell_gen_landmine_knockback_achievement") { }
+
+    class spell_gen_landmine_knockback_achievement_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_gen_landmine_knockback_achievement_SpellScript);
+
+        void HandleScript(SpellEffIndex /*effIndex*/)
+        {
+            if (Player* target = GetHitPlayer())
+            {
+                Aura const* aura = GetHitAura();
+                if (!aura || aura->GetStackAmount() < 10)
+                    return;
+
+                target->CastSpell(target, SPELL_LANDMINE_KNOCKBACK_ACHIEVEMENT, true);
+            }
+        }
+
+        void Register() override
+        {
+            OnEffectHitTarget += SpellEffectFn(spell_gen_landmine_knockback_achievement_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+        }
+    };
+
+    SpellScript* GetSpellScript() const override
+    {
+        return new spell_gen_landmine_knockback_achievement_SpellScript();
+    }
+};
+
+// 34098 - ClearAllDebuffs
+class spell_gen_clear_debuffs : public SpellScriptLoader
+{
+    public:
+        spell_gen_clear_debuffs() : SpellScriptLoader("spell_gen_clear_debuffs") { }
+
+        class spell_gen_clear_debuffs_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gen_clear_debuffs_SpellScript);
+
+            void HandleScript(SpellEffIndex /*effIndex*/)
+            {
+                if (Unit* target = GetHitUnit())
+                {
+                    target->RemoveOwnedAuras([](Aura const* aura)
+                    {
+                        SpellInfo const* spellInfo = aura->GetSpellInfo();
+                        return !spellInfo->IsPositive() && !spellInfo->IsPassive();
+                    });
+                }
+            }
+
+            void Register() override
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_gen_clear_debuffs_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_gen_clear_debuffs_SpellScript();
+        }
+};
+
+// 169869 - Transformation Sickness
+class spell_gen_decimatus_transformation_sickness : public SpellScriptLoader
+{
+public:
+    spell_gen_decimatus_transformation_sickness() : SpellScriptLoader("spell_gen_decimatus_transformation_sickness") { }
+
+    class spell_gen_decimatus_transformation_sickness_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_gen_decimatus_transformation_sickness_SpellScript);
+
+        void HandleScript(SpellEffIndex /*effIndex*/)
+        {
+             if (Unit* target = GetHitUnit())
+                 target->SetHealth(target->CountPctFromMaxHealth(10));
+        }
+
+        void Register() override
+        {
+            OnEffectHitTarget += SpellEffectFn(spell_gen_decimatus_transformation_sickness_SpellScript::HandleScript, EFFECT_1, SPELL_EFFECT_SCRIPT_EFFECT);
+        }
+    };
+
+    SpellScript* GetSpellScript() const override
+    {
+        return new spell_gen_decimatus_transformation_sickness_SpellScript();
+    }
+};
+
+// 189491 - Summon Towering Infernal.
+class spell_gen_anetheron_summon_towering_infernal : public SpellScriptLoader
+{
+    public:
+        spell_gen_anetheron_summon_towering_infernal() : SpellScriptLoader("spell_gen_anetheron_summon_towering_infernal") { }
+
+        class spell_gen_anetheron_summon_towering_infernal_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gen_anetheron_summon_towering_infernal_SpellScript);
+
+            void HandleDummy(SpellEffIndex /* effIndex */)
+            {
+               GetCaster()->CastSpell(GetHitUnit(), uint32(GetEffectValue()), true);
+            }
+
+            void Register() override
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_gen_anetheron_summon_towering_infernal_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_gen_anetheron_summon_towering_infernal_SpellScript();
+        }
+};
+
+enum KazrogalHellfireMark
+{
+    SPELL_MARK_OF_KAZROGAL_HELLFIRE = 189512,
+    SPELL_MARK_OF_KAZROGAL_DAMAGE_HELLFIRE = 189515
+};
+
+class MarkTargetHellfireFilter
+{
+    public:
+        bool operator()(WorldObject* target) const
+        {
+            if (Unit* unit = target->ToUnit())
+                return unit->getPowerType() != POWER_MANA;
+            return false;
+        }
+};
+
+class spell_gen_mark_of_kazrogal_hellfire : public SpellScriptLoader
+{
+    public:
+        spell_gen_mark_of_kazrogal_hellfire() : SpellScriptLoader("spell_gen_mark_of_kazrogal_hellfire") { }
+
+        class spell_gen_mark_of_kazrogal_hellfire_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gen_mark_of_kazrogal_hellfire_SpellScript);
+
+            void FilterTargets(std::list<WorldObject*>& targets)
+            {
+                targets.remove_if(MarkTargetHellfireFilter());
+            }
+
+            void Register() override
+            {
+                 OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_gen_mark_of_kazrogal_hellfire_SpellScript::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
+            }
+        };
+
+        class spell_gen_mark_of_kazrogal_hellfire_AuraScript : public AuraScript
+        {
+            PrepareAuraScript(spell_gen_mark_of_kazrogal_hellfire_AuraScript);
+
+            bool Validate(SpellInfo const* /*spell*/) override
+            {
+                if (!sSpellMgr->GetSpellInfo(SPELL_MARK_OF_KAZROGAL_DAMAGE_HELLFIRE))
+                    return false;
+                return true;
+            }
+
+            void OnPeriodic(AuraEffect const* aurEff)
+            {
+                Unit* target = GetTarget();
+
+                if (target->GetPower(POWER_MANA) == 0)
+                {
+                    target->CastSpell(target, SPELL_MARK_OF_KAZROGAL_DAMAGE_HELLFIRE, true, NULL, aurEff);
+                    // Remove aura
+                    SetDuration(0);
+                }
+            }
+
+            void Register() override
+            {
+                OnEffectPeriodic += AuraEffectPeriodicFn(spell_gen_mark_of_kazrogal_hellfire_AuraScript::OnPeriodic, EFFECT_0, SPELL_AURA_POWER_BURN);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_gen_mark_of_kazrogal_hellfire_SpellScript();
+        }
+
+        AuraScript* GetAuraScript() const override
+        {
+            return new spell_gen_mark_of_kazrogal_hellfire_AuraScript();
+        }
+};
+
+class spell_gen_azgalor_rain_of_fire_hellfire_citadel : public SpellScriptLoader
+{
+    public:
+        spell_gen_azgalor_rain_of_fire_hellfire_citadel() : SpellScriptLoader("spell_gen_azgalor_rain_of_fire_hellfire_citadel") { }
+
+        class spell_gen_azgalor_rain_of_fire_hellfire_citadel_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gen_azgalor_rain_of_fire_hellfire_citadel_SpellScript);
+
+            void HandleDummy(SpellEffIndex /* effIndex */)
+            {
+               GetCaster()->CastSpell(GetHitUnit(), uint32(GetEffectValue()), true);
+            }
+
+            void Register() override
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_gen_azgalor_rain_of_fire_hellfire_citadel_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_gen_azgalor_rain_of_fire_hellfire_citadel_SpellScript();
+        }
+};
+
 void AddSC_generic_spell_scripts()
 {
     new spell_gen_absorb0_hitlimit1();
@@ -4173,6 +4445,7 @@ void AddSC_generic_spell_scripts()
     new spell_gen_parachute();
     new spell_gen_pet_summoned();
     new spell_gen_profession_research();
+    new spell_gen_pvp_trinket();
     new spell_gen_remove_flight_auras();
     new spell_gen_replenishment();
     // Running Wild
@@ -4201,4 +4474,10 @@ void AddSC_generic_spell_scripts()
     new spell_gen_gm_freeze();
     new spell_gen_stand();
     new spell_gen_mixology_bonus();
+    new spell_gen_landmine_knockback_achievement();
+    new spell_gen_clear_debuffs();
+    new spell_gen_decimatus_transformation_sickness();
+    new spell_gen_anetheron_summon_towering_infernal();
+    new spell_gen_mark_of_kazrogal_hellfire();
+    new spell_gen_azgalor_rain_of_fire_hellfire_citadel();
 }

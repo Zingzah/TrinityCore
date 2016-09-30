@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -317,14 +317,12 @@ class boss_professor_putricide : public CreatureScript
                         // no possible aura seen in sniff adding the aurastate
                         summon->ModifyAuraState(AURA_STATE_UNKNOWN22, true);
                         summon->CastSpell(summon, SPELL_GASEOUS_BLOAT_PROC, true);
-                        summon->ApplySpellImmune(0, IMMUNITY_EFFECT, SPELL_EFFECT_KNOCK_BACK, true);
                         summon->SetReactState(REACT_PASSIVE);
                         break;
                     case NPC_VOLATILE_OOZE:
                         // no possible aura seen in sniff adding the aurastate
                         summon->ModifyAuraState(AURA_STATE_UNKNOWN19, true);
                         summon->CastSpell(summon, SPELL_OOZE_ERUPTION_SEARCH_PERIODIC, true);
-                        summon->ApplySpellImmune(0, IMMUNITY_EFFECT, SPELL_EFFECT_KNOCK_BACK, true);
                         summon->SetReactState(REACT_PASSIVE);
                         break;
                     case NPC_CHOKING_GAS_BOMB:
@@ -371,21 +369,21 @@ class boss_professor_putricide : public CreatureScript
                 {
                     case POINT_FESTERGUT:
                         instance->SetBossState(DATA_FESTERGUT, IN_PROGRESS); // needed here for delayed gate close
-                        me->SetSpeed(MOVE_RUN, _baseSpeed, true);
+                        me->SetSpeedRate(MOVE_RUN, _baseSpeed);
                         DoAction(ACTION_FESTERGUT_GAS);
                         if (Creature* festergut = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_FESTERGUT)))
                             festergut->CastSpell(festergut, SPELL_GASEOUS_BLIGHT_LARGE, false, NULL, NULL, festergut->GetGUID());
                         break;
                     case POINT_ROTFACE:
                         instance->SetBossState(DATA_ROTFACE, IN_PROGRESS);   // needed here for delayed gate close
-                        me->SetSpeed(MOVE_RUN, _baseSpeed, true);
+                        me->SetSpeedRate(MOVE_RUN, _baseSpeed);
                         DoAction(ACTION_ROTFACE_OOZE);
                         events.ScheduleEvent(EVENT_ROTFACE_OOZE_FLOOD, 25000, 0, PHASE_ROTFACE);
                         break;
                     case POINT_TABLE:
                         // stop attack
                         me->GetMotionMaster()->MoveIdle();
-                        me->SetSpeed(MOVE_RUN, _baseSpeed, true);
+                        me->SetSpeedRate(MOVE_RUN, _baseSpeed);
                         if (GameObject* table = ObjectAccessor::GetGameObject(*me, instance->GetGuidData(DATA_PUTRICIDE_TABLE)))
                             me->SetFacingToObject(table);
                         // operating on new phase already
@@ -420,7 +418,7 @@ class boss_professor_putricide : public CreatureScript
                 {
                     case ACTION_FESTERGUT_COMBAT:
                         SetPhase(PHASE_FESTERGUT);
-                        me->SetSpeed(MOVE_RUN, _baseSpeed*2.0f, true);
+                        me->SetSpeedRate(MOVE_RUN, _baseSpeed*2.0f);
                         me->GetMotionMaster()->MovePoint(POINT_FESTERGUT, festergutWatchPos);
                         me->SetReactState(REACT_PASSIVE);
                         DoZoneInCombat(me);
@@ -437,7 +435,7 @@ class boss_professor_putricide : public CreatureScript
                     case ACTION_ROTFACE_COMBAT:
                     {
                         SetPhase(PHASE_ROTFACE);
-                        me->SetSpeed(MOVE_RUN, _baseSpeed*2.0f, true);
+                        me->SetSpeedRate(MOVE_RUN, _baseSpeed*2.0f);
                         me->GetMotionMaster()->MovePoint(POINT_ROTFACE, rotfaceWatchPos);
                         me->SetReactState(REACT_PASSIVE);
                         _oozeFloodStage = 0;
@@ -479,7 +477,7 @@ class boss_professor_putricide : public CreatureScript
                         events.ScheduleEvent(EVENT_ROTFACE_DIES, 4500, 0, PHASE_ROTFACE);
                         break;
                     case ACTION_CHANGE_PHASE:
-                        me->SetSpeed(MOVE_RUN, _baseSpeed*2.0f, true);
+                        me->SetSpeedRate(MOVE_RUN, _baseSpeed*2.0f);
                         events.DelayEvents(30000);
                         me->AttackStop();
                         if (!IsHeroic())
@@ -564,7 +562,7 @@ class boss_professor_putricide : public CreatureScript
 
             void UpdateAI(uint32 diff) override
             {
-                if ((!(events.IsInPhase(PHASE_ROTFACE) || events.IsInPhase(PHASE_FESTERGUT)) && !UpdateVictim()) || !CheckInRoom())
+                if (!(events.IsInPhase(PHASE_ROTFACE) || events.IsInPhase(PHASE_FESTERGUT)) && !UpdateVictim())
                     return;
 
                 events.Update(diff);
@@ -616,7 +614,7 @@ class boss_professor_putricide : public CreatureScript
                             DoCast(me, SPELL_TEAR_GAS_PERIODIC_TRIGGER, true);
                             break;
                         case EVENT_RESUME_ATTACK:
-                            me->SetReactState(REACT_DEFENSIVE);
+                            me->SetReactState(REACT_AGGRESSIVE);
                             AttackStart(me->GetVictim());
                             // remove Tear Gas
                             me->RemoveAurasDueToSpell(SPELL_TEAR_GAS_PERIODIC_TRIGGER);
@@ -1340,7 +1338,7 @@ class spell_putricide_mutation_init : public SpellScriptLoader
                 SpellCastResult result = CheckRequirementInternal(extension);
                 if (result != SPELL_CAST_OK)
                 {
-                    Spell::SendCastResult(GetExplTargetUnit()->ToPlayer(), GetSpellInfo(), 0, result, extension);
+                    Spell::SendCastResult(GetExplTargetUnit()->ToPlayer(), GetSpellInfo(), GetSpell()->m_SpellVisual, GetSpell()->m_castId, result, extension);
                     return result;
                 }
 
@@ -1437,7 +1435,7 @@ class spell_putricide_mutated_transformation : public SpellScriptLoader
                 if (putricide->AI()->GetData(DATA_ABOMINATION))
                 {
                     if (Player* player = caster->ToPlayer())
-                        Spell::SendCastResult(player, GetSpellInfo(), 0, SPELL_FAILED_CUSTOM_ERROR, SPELL_CUSTOM_ERROR_TOO_MANY_ABOMINATIONS);
+                        Spell::SendCastResult(player, GetSpellInfo(), GetSpell()->m_SpellVisual, GetSpell()->m_castId, SPELL_FAILED_CUSTOM_ERROR, SPELL_CUSTOM_ERROR_TOO_MANY_ABOMINATIONS);
                     return;
                 }
 

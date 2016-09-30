@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -573,7 +573,7 @@ struct gunship_npc_AI : public ScriptedAI
         }
     }
 
-    void EnterEvadeMode() override
+    void EnterEvadeMode(EvadeReason /*why*/) override
     {
         if (!me->IsAlive() || !me->IsInCombat())
             return;
@@ -622,7 +622,7 @@ protected:
     {
         if (Instance->GetBossState(DATA_ICECROWN_GUNSHIP_BATTLE) != IN_PROGRESS)
         {
-            EnterEvadeMode();
+            EnterEvadeMode(EVADE_REASON_OTHER);
             return false;
         }
 
@@ -635,7 +635,7 @@ protected:
         }
         else if (me->getThreatManager().isThreatListEmpty())
         {
-            EnterEvadeMode();
+            EnterEvadeMode(EVADE_REASON_OTHER);
             return false;
         }
 
@@ -870,7 +870,7 @@ class npc_high_overlord_saurfang_igb : public CreatureScript
                 _events.ScheduleEvent(EVENT_CLEAVE, urand(2000, 10000));
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason /*why*/) override
             {
                 if (!me->IsAlive())
                     return;
@@ -1138,7 +1138,7 @@ class npc_muradin_bronzebeard_igb : public CreatureScript
                 _events.ScheduleEvent(EVENT_CLEAVE, urand(2000, 10000));
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason /*why*/) override
             {
                 if (!me->IsAlive())
                     return;
@@ -1716,9 +1716,9 @@ class npc_gunship_mage : public CreatureScript
                 me->SetReactState(REACT_PASSIVE);
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason why) override
             {
-                ScriptedAI::EnterEvadeMode();
+                ScriptedAI::EnterEvadeMode(why);
             }
 
             void MovementInform(uint32 type, uint32 pointId) override
@@ -2133,14 +2133,17 @@ class spell_igb_below_zero : public SpellScriptLoader
         {
             PrepareSpellScript(spell_igb_below_zero_SpellScript);
 
-            void RemovePassengers()
+            void RemovePassengers(SpellMissInfo missInfo)
             {
+                if (missInfo != SPELL_MISS_NONE)
+                    return;
+
                 GetHitUnit()->CastSpell(GetHitUnit(), SPELL_EJECT_ALL_PASSENGERS_BELOW_ZERO, TRIGGERED_FULL_MASK);
             }
 
             void Register() override
             {
-                BeforeHit += SpellHitFn(spell_igb_below_zero_SpellScript::RemovePassengers);
+                BeforeHit += BeforeSpellHitFn(spell_igb_below_zero_SpellScript::RemovePassengers);
             }
         };
 

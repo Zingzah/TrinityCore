@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -41,6 +41,7 @@ go_tadpole_cage
 go_amberpine_outhouse
 go_hive_pod
 go_veil_skith_cage
+go_toy_train_set
 EndContentData */
 
 #include "ScriptMgr.h"
@@ -833,12 +834,11 @@ class go_soulwell : public GameObjectScript
             {
             }
 
-            /// Due to the fact that this GameObject triggers CMSG_GAMEOBJECT_USE
-            /// _and_ CMSG_GAMEOBJECT_REPORT_USE, this GossipHello hook is called
-            /// twice. The script's handling is fine as it won't remove two charges
-            /// on the well. We have to find how to segregate REPORT_USE and USE.
-            bool GossipHello(Player* player) override
+            bool GossipHello(Player* player, bool isUse) override
             {
+                if (!isUse)
+                    return true;
+
                 Unit* owner = go->GetOwner();
                 if (!owner || owner->GetTypeId() != TYPEID_PLAYER || !player->IsInSameRaidWith(owner->ToPlayer()))
                     return true;
@@ -1099,7 +1099,7 @@ public:
                 player->CastSpell(player, SPELL_CLEANSING_SOUL);
                 player->SetStandState(UNIT_STAND_STATE_SIT);
             }
-            return true;
+        return true;
     }
 };
 
@@ -1123,6 +1123,48 @@ public:
         player->CLOSE_GOSSIP_MENU();
         return false;
     }
+};
+
+
+enum ToyTrainSpells
+{
+    SPELL_TOY_TRAIN_PULSE       = 61551,
+};
+
+class go_toy_train_set : public GameObjectScript
+{
+    public:
+        go_toy_train_set() : GameObjectScript("go_toy_train_set") { }
+
+        struct go_toy_train_setAI : public GameObjectAI
+        {
+            go_toy_train_setAI(GameObject* go) : GameObjectAI(go), _pulseTimer(3 * IN_MILLISECONDS) { }
+
+            void UpdateAI(uint32 diff) override
+            {
+                if (diff < _pulseTimer)
+                    _pulseTimer -= diff;
+                else
+                {
+                    go->CastSpell(nullptr, SPELL_TOY_TRAIN_PULSE, true);
+                    _pulseTimer = 6 * IN_MILLISECONDS;
+                }
+            }
+
+            // triggered on wrecker'd
+            void DoAction(int32 /*action*/) override
+            {
+                go->Delete();
+            }
+
+        private:
+            uint32 _pulseTimer;
+        };
+
+        GameObjectAI* GetAI(GameObject* go) const override
+        {
+            return new go_toy_train_setAI(go);
+        }
 };
 
 void AddSC_go_scripts()
@@ -1160,4 +1202,5 @@ void AddSC_go_scripts()
     new go_veil_skith_cage();
     new go_frostblade_shrine();
     new go_midsummer_bonfire();
+    new go_toy_train_set();
 }

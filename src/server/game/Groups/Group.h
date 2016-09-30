@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -68,7 +68,9 @@ enum GroupMemberOnlineStatus
     MEMBER_STATUS_PVP_FFA   = 0x0010,                       // Lua_UnitIsPVPFreeForAll
     MEMBER_STATUS_UNK3      = 0x0020,                       // used in calls from Lua_GetPlayerMapPosition/Lua_GetBattlefieldFlagPosition
     MEMBER_STATUS_AFK       = 0x0040,                       // Lua_UnitIsAFK
-    MEMBER_STATUS_DND       = 0x0080                        // Lua_UnitIsDND
+    MEMBER_STATUS_DND       = 0x0080,                       // Lua_UnitIsDND
+    MEMBER_STATUS_RAF       = 0x0100,
+    MEMBER_STATUS_VEHICLE   = 0x0200,                       // Lua_UnitInVehicle
 };
 
 enum GroupMemberFlags
@@ -188,7 +190,7 @@ struct RaidMarker
 
 /** request member stats checken **/
 /// @todo uninvite people that not accepted invite
-class Group
+class TC_GAME_API Group
 {
     public:
         struct MemberSlot
@@ -226,6 +228,7 @@ class Group
         bool   AddMember(Player* player);
         bool   RemoveMember(ObjectGuid guid, const RemoveMethod &method = GROUP_REMOVEMETHOD_DEFAULT, ObjectGuid kicker = ObjectGuid::Empty, const char* reason = NULL);
         void   ChangeLeader(ObjectGuid guid, int8 partyIndex = 0);
+ static void   ConvertLeaderInstancesToGroup(Player* player, Group* group, bool switchLeader);
         void   SetLootMethod(LootMethod method);
         void   SetLooterGuid(ObjectGuid guid);
         void   SetMasterLooterGuid(ObjectGuid guid);
@@ -357,7 +360,6 @@ class Group
         void SendLootAllPassed(Roll const& roll);
         void SendLooter(Creature* creature, Player* pLooter);
         void GroupLoot(Loot* loot, WorldObject* pLootedObject);
-        void NeedBeforeGreed(Loot* loot, WorldObject* pLootedObject);
         void MasterLoot(Loot* loot, WorldObject* pLootedObject);
         Rolls::iterator GetRoll(ObjectGuid Guid);
         void CountTheRoll(Rolls::iterator roll);

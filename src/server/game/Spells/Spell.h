@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -31,6 +31,7 @@ namespace WorldPackets
     {
         struct SpellCastRequest;
         struct SpellTargetData;
+        struct SpellAmmo;
         struct SpellCastData;
     }
 }
@@ -108,6 +109,17 @@ enum SpellCastFlagsEx
     CAST_FLAG_EX_UNKNOWN_20      = 0x80000
 };
 
+enum SpellCastSource : uint8
+{
+    SPELL_CAST_SOURCE_PLAYER = 2,
+    SPELL_CAST_SOURCE_NORMAL = 3,
+    SPELL_CAST_SOURCE_ITEM = 4,
+    SPELL_CAST_SOURCE_PASSIVE = 7,
+    SPELL_CAST_SOURCE_PET = 9,
+    SPELL_CAST_SOURCE_AURA = 13,
+    SPELL_CAST_SOURCE_SPELL = 16,
+};
+
 enum SpellRangeFlag
 {
     SPELL_RANGE_DEFAULT             = 0,
@@ -115,7 +127,7 @@ enum SpellRangeFlag
     SPELL_RANGE_RANGED              = 2      //hunter range and ranged weapon
 };
 
-struct SpellDestination
+struct TC_GAME_API SpellDestination
 {
     SpellDestination();
     SpellDestination(float x, float y, float z, float orientation = 0.0f, uint32 mapId = MAPID_INVALID);
@@ -167,7 +179,7 @@ struct SpellLogEffectFeedPetParams
     int32 ItemID        = 0;
 };
 
-class SpellCastTargets
+class TC_GAME_API SpellCastTargets
 {
     public:
         SpellCastTargets();
@@ -291,7 +303,7 @@ enum SpellEffectHandleMode
 
 typedef std::list<std::pair<uint32, ObjectGuid>> DispelList;
 
-class Spell
+class TC_GAME_API Spell
 {
     friend void Unit::SetCurrentCastSpell(Spell* pSpell);
     friend class SpellScript;
@@ -382,7 +394,6 @@ class Spell
         void EffectMilling(SpellEffIndex effIndex);
         void EffectRenamePet(SpellEffIndex effIndex);
         void EffectSendTaxi(SpellEffIndex effIndex);
-        void EffectSummonCritter(SpellEffIndex effIndex);
         void EffectKnockBack(SpellEffIndex effIndex);
         void EffectPullTowards(SpellEffIndex effIndex);
         void EffectDispelMechanic(SpellEffIndex effIndex);
@@ -418,7 +429,6 @@ class Spell
         void EffectTitanGrip(SpellEffIndex effIndex);
         void EffectEnchantItemPrismatic(SpellEffIndex effIndex);
         void EffectPlayMusic(SpellEffIndex effIndex);
-        void EffectSpecCount(SpellEffIndex effIndex);
         void EffectActivateSpec(SpellEffIndex effIndex);
         void EffectPlaySound(SpellEffIndex effIndex);
         void EffectRemoveAura(SpellEffIndex effIndex);
@@ -439,6 +449,11 @@ class Spell
         void EffectUncageBattlePet(SpellEffIndex effIndex);
         void EffectCreateHeirloomItem(SpellEffIndex effIndex);
         void EffectUpgradeHeirloom(SpellEffIndex effIndex);
+        void EffectApplyEnchantIllusion(SpellEffIndex effIndex);
+        void EffectUpdatePlayerPhase(SpellEffIndex effIndex);
+        void EffectUpdateZoneAurasAndPhases(SpellEffIndex effIndex);
+        void EffectGiveArtifactPower(SpellEffIndex effIndex);
+        void EffectGiveArtifactPowerNoBonus(SpellEffIndex effIndex);
 
         typedef std::set<Aura*> UsedSpellMods;
 
@@ -497,7 +512,7 @@ class Spell
         SpellCastResult CheckItems();
         SpellCastResult CheckRange(bool strict);
         SpellCastResult CheckPower();
-        SpellCastResult CheckRuneCost(uint32 runeCostID);
+        SpellCastResult CheckRuneCost();
         SpellCastResult CheckCasterAuras() const;
         SpellCastResult CheckArenaAndRatedBattlegroundCastRules();
 
@@ -518,7 +533,7 @@ class Spell
         void CheckSrc() { if (!m_targets.HasSrc()) m_targets.SetSrc(*m_caster); }
         void CheckDst() { if (!m_targets.HasDst()) m_targets.SetDst(*m_caster); }
 
-        static void SendCastResult(Player* caster, SpellInfo const* spellInfo, uint8 cast_count, SpellCastResult result, SpellCustomErrors customError = SPELL_CUSTOM_ERROR_NONE, OpcodeServer opcode = SMSG_CAST_FAILED, uint32* misc = nullptr);
+        static void SendCastResult(Player* caster, SpellInfo const* spellInfo, uint32 spellVisual, ObjectGuid cast_count, SpellCastResult result, SpellCustomErrors customError = SPELL_CUSTOM_ERROR_NONE, uint32* misc = nullptr);
         void SendCastResult(SpellCastResult result);
         void SendPetCastResult(SpellCastResult result);
         void SendSpellStart();
@@ -535,7 +550,6 @@ class Spell
         void ExecuteLogEffectSummonObject(uint8 effIndex, WorldObject* obj);
         void ExecuteLogEffectUnsummonObject(uint8 effIndex, WorldObject* obj);
         void ExecuteLogEffectResurrect(uint8 effIndex, Unit* target);
-        void CleanupExecuteLogList();
         void SendInterrupted(uint8 result);
         void SendChannelUpdate(uint32 time);
         void SendChannelStart(uint32 duration);
@@ -549,13 +563,19 @@ class Spell
         ObjectGuid m_castItemGUID;
         uint32 m_castItemEntry;
         int32 m_castItemLevel;
-        uint8 m_cast_count;
+        ObjectGuid m_castId;
+        ObjectGuid m_originalCastId;
         uint32 m_castFlagsEx;
         union
         {
             // Alternate names for this value
             uint32 TalentId;
-            uint32 GlyphSlot;
+
+            // SPELL_EFFECT_APPLY_GLYPH
+            uint32 SpellId;
+
+            // SPELL_EFFECT_TALENT_SPEC_SELECT
+            uint32 SpecializationId;
 
             // SPELL_EFFECT_SET_FOLLOWER_QUALITY
             // SPELL_EFFECT_INCREASE_FOLLOWER_ITEM_LEVEL
@@ -612,7 +632,7 @@ class Spell
         Unit* GetCaster() const { return m_caster; }
         Unit* GetOriginalCaster() const { return m_originalCaster; }
         SpellInfo const* GetSpellInfo() const { return m_spellInfo; }
-        std::vector<SpellInfo::CostData> GetPowerCost() const { return m_powerCost; }
+        std::vector<SpellInfo::CostData> const& GetPowerCost() const { return m_powerCost; }
 
         bool UpdatePointers();                              // must be used at call Spell code after time delay (non triggered spell cast/update spell call/etc)
 
@@ -661,6 +681,7 @@ class Spell
         int32 m_channeledDuration;                          // Calculated channeled spell duration in order to calculate correct pushback.
         bool m_canReflect;                                  // can reflect this spell?
         bool m_autoRepeat;
+        bool m_isDelayedInstantCast;                        // whether this is a creature's delayed instant cast
         uint8 m_runesState;
 
         uint8 m_delayAtDamageCount;
@@ -783,7 +804,7 @@ class Spell
         void PrepareScriptHitHandlers();
         bool CallScriptEffectHandlers(SpellEffIndex effIndex, SpellEffectHandleMode mode);
         void CallScriptSuccessfulDispel(SpellEffIndex effIndex);
-        void CallScriptBeforeHitHandlers();
+        void CallScriptBeforeHitHandlers(SpellMissInfo missInfo);
         void CallScriptOnHitHandlers();
         void CallScriptAfterHitHandlers();
         void CallScriptObjectAreaTargetSelectHandlers(std::list<WorldObject*>& targets, SpellEffIndex effIndex, SpellImplicitTargetInfo const& targetType);
@@ -810,6 +831,7 @@ class Spell
         void CalculateJumpSpeeds(SpellEffectInfo const* effInfo, float dist, float& speedxy, float& speedz);
 
         void UpdateSpellCastDataTargets(WorldPackets::Spells::SpellCastData& data);
+        void UpdateSpellCastDataAmmo(WorldPackets::Spells::SpellAmmo& data);
 
         SpellCastResult CanOpenLock(uint32 effIndex, uint32 lockid, SkillType& skillid, int32& reqSkillValue, int32& skillValue);
         // -------------------------------------------
@@ -851,7 +873,7 @@ class Spell
 
 namespace Trinity
 {
-    struct WorldObjectSpellTargetCheck
+    struct TC_GAME_API WorldObjectSpellTargetCheck
     {
         Unit* _caster;
         Unit* _referer;
@@ -866,7 +888,7 @@ namespace Trinity
         bool operator()(WorldObject* target);
     };
 
-    struct WorldObjectSpellNearbyTargetCheck : public WorldObjectSpellTargetCheck
+    struct TC_GAME_API WorldObjectSpellNearbyTargetCheck : public WorldObjectSpellTargetCheck
     {
         float _range;
         Position const* _position;
@@ -875,7 +897,7 @@ namespace Trinity
         bool operator()(WorldObject* target);
     };
 
-    struct WorldObjectSpellAreaTargetCheck : public WorldObjectSpellTargetCheck
+    struct TC_GAME_API WorldObjectSpellAreaTargetCheck : public WorldObjectSpellTargetCheck
     {
         float _range;
         Position const* _position;
@@ -884,7 +906,7 @@ namespace Trinity
         bool operator()(WorldObject* target);
     };
 
-    struct WorldObjectSpellConeTargetCheck : public WorldObjectSpellAreaTargetCheck
+    struct TC_GAME_API WorldObjectSpellConeTargetCheck : public WorldObjectSpellAreaTargetCheck
     {
         float _coneAngle;
         WorldObjectSpellConeTargetCheck(float coneAngle, float range, Unit* caster,
@@ -892,7 +914,7 @@ namespace Trinity
         bool operator()(WorldObject* target);
     };
 
-    struct WorldObjectSpellTrajTargetCheck : public WorldObjectSpellAreaTargetCheck
+    struct TC_GAME_API WorldObjectSpellTrajTargetCheck : public WorldObjectSpellAreaTargetCheck
     {
         WorldObjectSpellTrajTargetCheck(float range, Position const* position, Unit* caster, SpellInfo const* spellInfo);
         bool operator()(WorldObject* target);
@@ -901,7 +923,7 @@ namespace Trinity
 
 typedef void(Spell::*pEffect)(SpellEffIndex effIndex);
 
-class SpellEvent : public BasicEvent
+class TC_GAME_API SpellEvent : public BasicEvent
 {
     public:
         SpellEvent(Spell* spell);

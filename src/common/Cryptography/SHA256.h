@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -20,13 +20,16 @@
 
 #include "Define.h"
 #include <string>
+#include <type_traits>
 #include <openssl/sha.h>
 
 class BigNumber;
 
-class SHA256Hash
+class TC_COMMON_API SHA256Hash
 {
     public:
+        typedef std::integral_constant<uint32, SHA256_DIGEST_LENGTH> DigestLength;
+
         SHA256Hash();
         ~SHA256Hash();
 

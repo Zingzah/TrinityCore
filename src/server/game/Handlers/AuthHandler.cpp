@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,12 +16,13 @@
  */
 
 #include "WorldSession.h"
-#include "ObjectMgr.h"
 #include "AuthenticationPackets.h"
+#include "BattlenetRpcErrorCodes.h"
 #include "ClientConfigPackets.h"
+#include "ObjectMgr.h"
 #include "SystemPackets.h"
 
-void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
+void WorldSession::SendAuthResponse(uint32 code, bool queued, uint32 queuePos)
 {
     WorldPackets::Auth::AuthResponse response;
     response.Result = code;
@@ -31,8 +32,7 @@ void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
         response.WaitInfo = boost::in_place();
         response.WaitInfo->WaitCount = queuePos;
     }
-
-    if (code == AUTH_OK)
+    else if (code == ERROR_OK)
     {
         response.SuccessInfo = boost::in_place();
 
@@ -40,10 +40,9 @@ void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
         response.SuccessInfo->ActiveExpansionLevel = GetExpansion();
         response.SuccessInfo->VirtualRealmAddress = GetVirtualRealmAddress();
 
-        std::string realmName = sObjectMgr->GetRealmName(realm.Id.Realm);
-
         // Send current home realm. Also there is no need to send it later in realm queries.
-        response.SuccessInfo->VirtualRealms.emplace_back(GetVirtualRealmAddress(), true, false, realmName, realmName);
+        response.SuccessInfo->VirtualRealms.emplace_back(GetVirtualRealmAddress(), true, false,
+            sObjectMgr->GetRealmName(realm.Id.Realm), sObjectMgr->GetNormalizedRealmName(realm.Id.Realm));
 
         if (HasPermission(rbac::RBAC_PERM_USE_CHARACTER_TEMPLATES))
             for (auto& templ : sObjectMgr->GetCharacterTemplates())
@@ -59,14 +58,12 @@ void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
 void WorldSession::SendAuthWaitQue(uint32 position)
 {
     WorldPackets::Auth::AuthResponse response;
+    response.Result = ERROR_OK;
 
-    if (position == 0)
-        response.Result = AUTH_OK;
-    else
+    if (position)
     {
         response.WaitInfo = boost::in_place();
         response.WaitInfo->WaitCount = position;
-        response.Result = AUTH_WAIT_QUEUE;
     }
 
     SendPacket(response.Write());

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -20,9 +20,12 @@
 #include <iostream>
 
 #include "TileAssembler.h"
+#include "Banner.h"
 
 int main(int argc, char* argv[])
 {
+    Trinity::Banner::Show("VMAP assembler", [](char const* text) { std::cout << text << std::endl; }, nullptr);
+
     if (argc != 3)
     {
         std::cout << "usage: " << argv[0] << " <raw data dir> <vmap dest dir>" << std::endl;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -38,8 +38,8 @@ namespace WorldPackets
 
         struct LootItemData
         {
-            uint8 Type              = 2;
-            uint8 UIType            = 7;
+            uint8 Type              = 0;
+            uint8 UIType            = 0;
             uint32 Quantity         = 0;
             uint8 LootItemType      = 0;
             uint8 LootListID        = 0;
@@ -65,7 +65,7 @@ namespace WorldPackets
             ObjectGuid LootObj;
             ObjectGuid Owner;
             uint8 Threshold      = 2; // Most common value, 2 = Uncommon
-            uint8 LootMethod     = 0;
+            uint8 _LootMethod    = 0; ///< @see enum LootMethod
             uint8 AcquireReason  = 0;
             uint8 FailureReason  = 17; // Most common value
             uint32 Coins         = 0;

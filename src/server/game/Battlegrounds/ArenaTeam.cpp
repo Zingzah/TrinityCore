@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -436,7 +436,7 @@ void ArenaTeamMember::ModifyPersonalRating(Player* player, int32 mod, uint32 typ
     if (player)
     {
         player->SetArenaTeamInfoField(ArenaTeam::GetSlotByType(type), ARENA_TEAM_PERSONAL_RATING, PersonalRating);
-        player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_PERSONAL_RATING, PersonalRating, type);
+        player->UpdateCriteria(CRITERIA_TYPE_HIGHEST_PERSONAL_RATING, PersonalRating, type);
     }
 }
 
@@ -550,7 +550,7 @@ int32 ArenaTeam::GetMatchmakerRatingMod(uint32 ownRating, uint32 opponentRating,
     */
 
     // Real rating modification
-    mod *= 24.0f;
+    mod *= sWorld->getFloatConfig(CONFIG_ARENA_MATCHMAKER_RATING_MODIFIER);
 
     return (int32)ceil(mod);
 }
@@ -560,21 +560,27 @@ int32 ArenaTeam::GetRatingMod(uint32 ownRating, uint32 opponentRating, bool won 
     // 'Chance' calculation - to beat the opponent
     // This is a simulation. Not much info on how it really works
     float chance = GetChanceAgainst(ownRating, opponentRating);
-    float won_mod = (won) ? 1.0f : 0.0f;
 
     // Calculate the rating modification
     float mod;
 
     /// @todo Replace this hack with using the confidence factor (limiting the factor to 2.0f)
-    if (won && ownRating < 1300)
+    if (won)
     {
-        if (ownRating < 1000)
-            mod = 48.0f * (won_mod - chance);
+        if (ownRating < 1300)
+        {
+            float win_rating_modifier1 = sWorld->getFloatConfig(CONFIG_ARENA_WIN_RATING_MODIFIER_1);
+
+            if (ownRating < 1000)
+                mod =  win_rating_modifier1 * (1.0f - chance);
+            else
+                mod = ((win_rating_modifier1 / 2.0f) + ((win_rating_modifier1 / 2.0f) * (1300.0f - float(ownRating)) / 300.0f)) * (1.0f - chance);
+        }
         else
-            mod = (24.0f + (24.0f * (1300.0f - float(ownRating)) / 300.0f)) * (won_mod - chance);
+            mod = sWorld->getFloatConfig(CONFIG_ARENA_WIN_RATING_MODIFIER_2) * (1.0f - chance);
     }
     else
-        mod = 24.0f * (won_mod - chance);
+        mod = sWorld->getFloatConfig(CONFIG_ARENA_LOSE_RATING_MODIFIER) * (-chance);
 
     return (int32)ceil(mod);
 }
@@ -591,7 +597,7 @@ void ArenaTeam::FinishGame(int32 mod)
         // Check if rating related achivements are met
         for (MemberList::iterator itr = Members.begin(); itr != Members.end(); ++itr)
             if (Player* member = ObjectAccessor::FindConnectedPlayer(itr->Guid))
-                member->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_TEAM_RATING, Stats.Rating, Type);
+                member->UpdateCriteria(CRITERIA_TYPE_HIGHEST_TEAM_RATING, Stats.Rating, Type);
     }
 
     // Update number of games played per season or week

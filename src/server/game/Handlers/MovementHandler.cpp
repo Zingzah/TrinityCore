@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -31,16 +31,17 @@
 #include "InstanceSaveMgr.h"
 #include "ObjectMgr.h"
 #include "Vehicle.h"
+#include "InstancePackets.h"
 #include "MovementPackets.h"
 
 #define MOVEMENT_PACKET_TIME_DELAY 0
 
 void WorldSession::HandleMoveWorldportAckOpcode(WorldPackets::Movement::WorldPortResponse& /*packet*/)
 {
-    HandleMoveWorldportAckOpcode();
+    HandleMoveWorldportAck();
 }
 
-void WorldSession::HandleMoveWorldportAckOpcode()
+void WorldSession::HandleMoveWorldportAck()
 {
     // ignore unexpected far teleports
     if (!GetPlayer()->IsBeingTeleportedFar())
@@ -77,9 +78,9 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     }
 
     // relocate the player to the teleport destination
-    // the CanEnter checks are done in TeleporTo but conditions may change
+    // the CannotEnter checks are done in TeleporTo but conditions may change
     // while the player is in transit, for example the map may get full
-    if (!newMap || !newMap->CanEnter(GetPlayer()))
+    if (!newMap || newMap->CannotEnter(GetPlayer()))
     {
         TC_LOG_ERROR("network", "Map %d (%s) could not be created for %s (%s), porting player to homebind", loc.GetMapId(), newMap ? newMap->GetMapName() : "Unknown", GetPlayer()->GetGUID().ToString().c_str(), GetPlayer()->GetName().c_str());
         GetPlayer()->TeleportTo(GetPlayer()->m_homebindMapId, GetPlayer()->m_homebindX, GetPlayer()->m_homebindY, GetPlayer()->m_homebindZ, GetPlayer()->GetOrientation());
@@ -94,6 +95,11 @@ void WorldSession::HandleMoveWorldportAckOpcode()
 
     GetPlayer()->ResetMap();
     GetPlayer()->SetMap(newMap);
+
+    WorldPackets::Movement::ResumeToken resumeToken;
+    resumeToken.SequenceIndex = _player->m_movementCounter;
+    resumeToken.Reason = seamlessTeleport ? 2 : 1;
+    SendPacket(resumeToken.Write());
 
     if (!seamlessTeleport)
         GetPlayer()->SendInitialPacketsBeforeAddToMap();
@@ -157,23 +163,22 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     }
 
     // resurrect character at enter into instance where his corpse exist after add to map
-    Corpse* corpse = GetPlayer()->GetMap()->GetCorpseByPlayer(GetPlayer()->GetGUID());
-    if (corpse && corpse->GetType() != CORPSE_BONES)
-    {
-        if (mEntry->IsDungeon())
+
+    if (mEntry->IsDungeon() && !GetPlayer()->IsAlive())
+        if (GetPlayer()->GetCorpseLocation().GetMapId() == mEntry->ID)
         {
             GetPlayer()->ResurrectPlayer(0.5f, false);
             GetPlayer()->SpawnCorpseBones();
         }
-    }
 
     bool allowMount = !mEntry->IsDungeon() || mEntry->IsBattlegroundOrArena();
     if (mInstance)
     {
+        // check if this instance has a reset time and send it to player if so
         Difficulty diff = GetPlayer()->GetDifficultyID(mEntry);
-        if (MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mEntry->ID, diff))
+        if (MapDifficultyEntry const* mapDiff = sDB2Manager.GetMapDifficultyData(mEntry->ID, diff))
         {
-            if (mapDiff->RaidDuration)
+            if (mapDiff->GetRaidDuration())
             {
                 if (time_t timeReset = sInstanceSaveMgr->GetResetTimeFor(mEntry->ID, diff))
                 {
@@ -182,6 +187,12 @@ void WorldSession::HandleMoveWorldportAckOpcode()
                 }
             }
         }
+
+        // check if instance is valid
+        if (!GetPlayer()->CheckInstanceValidity(false))
+            GetPlayer()->m_InstanceValid = false;
+
+        // instance mounting is handled in InstanceTemplate
         allowMount = mInstance->AllowMount;
     }
 
@@ -207,6 +218,30 @@ void WorldSession::HandleMoveWorldportAckOpcode()
 
     //lets process all delayed operations on successful teleport
     GetPlayer()->ProcessDelayedOperations();
+}
+
+void WorldSession::HandleSuspendTokenResponse(WorldPackets::Movement::SuspendTokenResponse& /*suspendTokenResponse*/)
+{
+    if (!_player->IsBeingTeleportedFar())
+        return;
+
+    WorldLocation const& loc = GetPlayer()->GetTeleportDest();
+
+    if (sMapStore.AssertEntry(loc.GetMapId())->IsDungeon())
+    {
+        WorldPackets::Instance::UpdateLastInstance updateLastInstance;
+        updateLastInstance.MapID = loc.GetMapId();
+        SendPacket(updateLastInstance.Write());
+    }
+
+    WorldPackets::Movement::NewWorld packet;
+    packet.MapID = loc.GetMapId();
+    packet.Pos.Relocate(loc);
+    packet.Reason = !_player->IsBeingTeleportedSeamlessly() ? NEW_WORLD_NORMAL : NEW_WORLD_SEAMLESS;
+    SendPacket(packet.Write());
+
+    if (_player->IsBeingTeleportedSeamlessly())
+        HandleMoveWorldportAck();
 }
 
 void WorldSession::HandleMoveTeleportAck(WorldPackets::Movement::MoveTeleportAck& packet)
@@ -325,7 +360,7 @@ void WorldSession::HandleMovementOpcodes(WorldPackets::Movement::ClientPlayerMov
         {
             GameObject* go = mover->GetMap()->GetGameObject(movementInfo.transport.guid);
             if (!go || go->GetGoType() != GAMEOBJECT_TYPE_TRANSPORT)
-                movementInfo.transport.guid.Clear();
+                movementInfo.transport.Reset();
         }
     }
     else if (plrMover && plrMover->GetTransport())                // if we were on a transport, leave
@@ -357,7 +392,7 @@ void WorldSession::HandleMovementOpcodes(WorldPackets::Movement::ClientPlayerMov
     {
         if (VehicleSeatEntry const* seat = vehicle->GetSeatForPassenger(mover))
         {
-            if (seat->Flags & VEHICLE_SEAT_FLAG_ALLOW_TURNING)
+            if (seat->Flags[0] & VEHICLE_SEAT_FLAG_ALLOW_TURNING)
             {
                 if (movementInfo.pos.GetOrientation() != mover->GetOrientation())
                 {
@@ -382,7 +417,7 @@ void WorldSession::HandleMovementOpcodes(WorldPackets::Movement::ClientPlayerMov
 
         plrMover->UpdateFallInformationIfNeed(movementInfo, opcode);
 
-        if (movementInfo.pos.GetPositionZ() < MAX_MAP_DEPTH)
+        if (movementInfo.pos.GetPositionZ() < plrMover->GetMap()->GetMinHeight(movementInfo.pos.GetPositionX(), movementInfo.pos.GetPositionY()))
         {
             if (!(plrMover->GetBattleground() && plrMover->GetBattleground()->HandlePlayerUnderMap(_player)))
             {
@@ -391,6 +426,7 @@ void WorldSession::HandleMovementOpcodes(WorldPackets::Movement::ClientPlayerMov
                 /// @todo discard movement packets after the player is rooted
                 if (plrMover->IsAlive())
                 {
+                    plrMover->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
                     plrMover->EnvironmentalDamage(DAMAGE_FALL_TO_VOID, GetPlayer()->GetMaxHealth());
                     // player can be alive if GM/etc
                     // change the death state to CORPSE to prevent the death timer from
@@ -465,7 +501,7 @@ void WorldSession::HandleForceSpeedChangeAck(WorldPackets::Movement::MovementSpe
         {
             TC_LOG_ERROR("network", "%sSpeedChange player %s is NOT correct (must be %f instead %f), force set to correct value",
                 move_type_name[move_type], _player->GetName().c_str(), _player->GetSpeed(move_type), packet.Speed);
-            _player->SetSpeed(move_type, _player->GetSpeedRate(move_type), true);
+            _player->SetSpeedRate(move_type, _player->GetSpeedRate(move_type));
         }
         else                                                // must be lesser - cheating
         {
@@ -481,14 +517,6 @@ void WorldSession::HandleSetActiveMoverOpcode(WorldPackets::Movement::SetActiveM
     if (GetPlayer()->IsInWorld())
         if (_player->m_mover->GetGUID() != packet.ActiveMover)
             TC_LOG_DEBUG("network", "HandleSetActiveMoverOpcode: incorrect mover guid: mover is %s and should be %s" , packet.ActiveMover.ToString().c_str(), _player->m_mover->GetGUID().ToString().c_str());
-}
-
-void WorldSession::HandleMountSpecialAnimOpcode(WorldPacket& /*recvData*/)
-{
-    WorldPacket data(SMSG_SPECIAL_MOUNT_ANIM, 8);
-    data << GetPlayer()->GetGUID();
-
-    GetPlayer()->SendMessageToSet(&data, false);
 }
 
 void WorldSession::HandleMoveKnockBackAck(WorldPackets::Movement::MovementAckMessage& movementAck)

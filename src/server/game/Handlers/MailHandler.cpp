@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -26,7 +26,6 @@
 #include "Player.h"
 #include "MailPackets.h"
 #include "Language.h"
-#include "DBCStores.h"
 #include "Item.h"
 #include "AccountMgr.h"
 #include "BattlenetAccountMgr.h"
@@ -38,7 +37,7 @@ bool WorldSession::CanOpenMailBox(ObjectGuid guid)
     {
         if (!HasPermission(rbac::RBAC_PERM_COMMAND_MAILBOX))
         {
-            TC_LOG_WARN("cheat", "%s attempt open mailbox in cheating way.", _player->GetName().c_str());
+            TC_LOG_WARN("cheat", "%s attempted to open mailbox by using a cheat.", _player->GetName().c_str());
             return false;
         }
     }
@@ -86,7 +85,7 @@ void WorldSession::HandleSendMail(WorldPackets::Mail::SendMail& packet)
 
     if (!receiverGuid)
     {
-        TC_LOG_INFO("network", "Player %s is sending mail to %s (GUID: not existed!) with subject %s "
+        TC_LOG_INFO("network", "Player %s is sending mail to %s (GUID: not existing!) with subject %s "
             "and body %s includes " SZFMTD " items, " SI64FMTD " copper and " SI64FMTD " COD copper with StationeryID = %d",
             GetPlayerInfo().c_str(), packet.Info.Target.c_str(), packet.Info.Subject.c_str(), packet.Info.Body.c_str(),
             packet.Info.Attachments.size(), packet.Info.SendMoney, packet.Info.Cod, packet.Info.StationeryID);
@@ -196,7 +195,7 @@ void WorldSession::HandleSendMail(WorldPackets::Mail::SendMail& packet)
         if (Item* item = player->GetItemByGuid(att.ItemGUID))
         {
             ItemTemplate const* itemProto = item->GetTemplate();
-            if (!itemProto || !(itemProto->GetFlags() & ITEM_FLAG_BIND_TO_ACCOUNT))
+            if (!itemProto || !(itemProto->GetFlags() & ITEM_FLAG_IS_BOUND_TO_ACCOUNT))
             {
                 accountBound = false;
                 break;
@@ -274,7 +273,7 @@ void WorldSession::HandleSendMail(WorldPackets::Mail::SendMail& packet)
     player->SendMailResult(0, MAIL_SEND, MAIL_OK);
 
     player->ModifyMoney(-reqmoney);
-    player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GOLD_SPENT_FOR_MAIL, cost);
+    player->UpdateCriteria(CRITERIA_TYPE_GOLD_SPENT_FOR_MAIL, cost);
 
     bool needItemDelay = false;
 
@@ -636,7 +635,7 @@ void WorldSession::HandleMailCreateTextItem(WorldPackets::Mail::MailCreateTextIt
     if (m->messageType == MAIL_NORMAL)
         bodyItem->SetGuidValue(ITEM_FIELD_CREATOR, ObjectGuid::Create<HighGuid::Player>(m->sender));
 
-    bodyItem->SetFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_MAIL_TEXT_MASK);
+    bodyItem->SetFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_READABLE);
 
     ItemPosCountVec dest;
     uint8 msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, bodyItem, false);

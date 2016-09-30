@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -41,9 +41,16 @@ enum GMSupportComplaintType
     GMTICKET_SUPPORT_COMPLAINT_TYPE_SPAMMING    = 24
 };
 
+enum SupportSpamType
+{
+    SUPPORT_SPAM_TYPE_MAIL     = 0,
+    SUPPORT_SPAM_TYPE_CHAT     = 1,
+    SUPPORT_SPAM_TYPE_CALENDAR = 2
+};
+
 using ChatLog = WorldPackets::Ticket::SupportTicketSubmitComplaint::SupportTicketChatLog;
 
-class Ticket
+class TC_GAME_API Ticket
 {
 public:
     Ticket();
@@ -109,7 +116,7 @@ protected:
     std::string _comment;
 };
 
-class BugTicket : public Ticket
+class TC_GAME_API BugTicket : public Ticket
 {
 public:
     BugTicket();
@@ -133,7 +140,7 @@ private:
     std::string _note;
 };
 
-class ComplaintTicket : public Ticket
+class TC_GAME_API ComplaintTicket : public Ticket
 {
 public:
     ComplaintTicket();
@@ -169,7 +176,7 @@ private:
     std::string _note;
 };
 
-class SuggestionTicket : public Ticket
+class TC_GAME_API SuggestionTicket : public Ticket
 {
 public:
     SuggestionTicket();
@@ -197,18 +204,14 @@ typedef std::map<uint32, BugTicket*> BugTicketList;
 typedef std::map<uint32, ComplaintTicket*> ComplaintTicketList;
 typedef std::map<uint32, SuggestionTicket*> SuggestionTicketList;
 
-class SupportMgr
+class TC_GAME_API SupportMgr
 {
 private:
     SupportMgr();
     ~SupportMgr();
 
 public:
-    static SupportMgr* instance()
-    {
-        static SupportMgr instance;
-        return &instance;
-    }
+    static SupportMgr* instance();
 
     template<typename T>
     T* GetTicket(uint32 ticketId);

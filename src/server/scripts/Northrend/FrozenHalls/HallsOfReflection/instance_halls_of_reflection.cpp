@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -349,7 +349,7 @@ class instance_halls_of_reflection : public InstanceMapScript
                                 }
                                 break;
                             case FAIL:
-                                DoStopTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_NOT_RETREATING_EVENT);
+                                DoStopCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_NOT_RETREATING_EVENT);
 
                                 if (Creature* jainaOrSylvanas = instance->GetCreature(JainaOrSylvanasEscapeGUID))
                                     jainaOrSylvanas->DespawnOrUnsummon(10000);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -63,8 +63,6 @@ void WorldSession::SendTaxiStatus(ObjectGuid guid)
         data.Status = TAXISTATUS_NOT_ELIGIBLE;
 
     SendPacket(data.Write());
-
-    TC_LOG_DEBUG("network", "WORLD: Sent SMSG_TAXI_NODE_STATUS");
 }
 
 void WorldSession::HandleTaxiQueryAvailableNodesOpcode(WorldPackets::Taxi::TaxiQueryAvailableNodes& taxiQueryAvailableNodes)
@@ -194,7 +192,6 @@ void WorldSession::SendActivateTaxiReply(ActivateTaxiReply reply)
     WorldPackets::Taxi::ActivateTaxiReply data;
     data.Reply = reply;
     SendPacket(data.Write());
-    TC_LOG_DEBUG("network", "WORLD: Sent SMSG_ACTIVATETAXIREPLY");
 }
 
 void WorldSession::HandleTaxiRequestEarlyLanding(WorldPackets::Taxi::TaxiRequestEarlyLanding& /*taxiRequestEarlyLanding*/)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -270,4 +270,19 @@ void WorldPackets::Chat::ChatReportIgnored::Read()
 {
     _worldPacket >> IgnoredGUID;
     _worldPacket >> Reason;
+}
+
+WorldPacket const* WorldPackets::Chat::ChatPlayerAmbiguous::Write()
+{
+    _worldPacket.WriteBits(Name.length(), 9);
+    _worldPacket.WriteString(Name);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Chat::ChatRestricted::Write()
+{
+    _worldPacket << uint8(Reason);
+
+    return &_worldPacket;
 }

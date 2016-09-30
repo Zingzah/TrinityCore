@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -556,6 +556,8 @@ class npc_green_dragon_combat_trigger : public CreatureScript
             {
                 if (!me->IsInCombat())
                     return;
+
+                // @TODO check out of bounds on all encounter creatures, evade if matched
 
                 std::list<HostileReference*> const& threatList = me->getThreatManager().getThreatList();
                 if (threatList.empty())

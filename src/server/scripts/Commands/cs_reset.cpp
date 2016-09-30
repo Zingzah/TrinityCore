@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -64,7 +64,7 @@ public:
         if (target)
             target->ResetAchievements();
         else
-            AchievementMgr<Player>::DeleteFromDB(targetGuid);
+            PlayerAchievementMgr::DeleteFromDB(targetGuid);
 
         return true;
     }
@@ -77,7 +77,7 @@ public:
 
         target->SetUInt32Value(PLAYER_FIELD_KILLS, 0);
         target->SetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS, 0);
-        target->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_EARN_HONORABLE_KILL);
+        target->UpdateCriteria(CRITERIA_TYPE_EARN_HONORABLE_KILL);
 
         return true;
     }
@@ -134,7 +134,6 @@ public:
         target->InitRunes();
         target->InitStatsForLevel(true);
         target->InitTaxiNodesForLevel();
-        target->InitGlyphsForLevel();
         target->InitTalentForLevel();
         target->SetUInt32Value(PLAYER_XP, 0);
 
@@ -190,7 +189,6 @@ public:
         target->InitRunes();
         target->InitStatsForLevel(true);
         target->InitTaxiNodesForLevel();
-        target->InitGlyphsForLevel();
         target->InitTalentForLevel();
 
         return true;

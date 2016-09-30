@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -159,6 +159,12 @@ bool PlayerSocial::HasFriend(ObjectGuid const& friendGuid)
 bool PlayerSocial::HasIgnore(ObjectGuid const& ignoreGuid)
 {
     return _HasContact(ignoreGuid, SOCIAL_FLAG_IGNORED);
+}
+
+SocialMgr* SocialMgr::instance()
+{
+    static SocialMgr instance;
+    return &instance;
 }
 
 void SocialMgr::GetFriendInfo(Player* player, ObjectGuid const& friendGUID, FriendInfo& friendInfo)

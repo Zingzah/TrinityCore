@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -32,7 +32,7 @@ enum DynamicObjectType
     DYNAMIC_OBJECT_FARSIGHT_FOCUS   = 0x2
 };
 
-class DynamicObject : public WorldObject, public GridObject<DynamicObject>, public MapObject
+class TC_GAME_API DynamicObject : public WorldObject, public GridObject<DynamicObject>, public MapObject
 {
     public:
         DynamicObject(bool isWorldObject);
@@ -41,7 +41,7 @@ class DynamicObject : public WorldObject, public GridObject<DynamicObject>, publ
         void AddToWorld() override;
         void RemoveFromWorld() override;
 
-        bool CreateDynamicObject(ObjectGuid::LowType guidlow, Unit* caster, SpellInfo const* spell, Position const& pos, float radius, DynamicObjectType type);
+        bool CreateDynamicObject(ObjectGuid::LowType guidlow, Unit* caster, SpellInfo const* spell, Position const& pos, float radius, DynamicObjectType type, uint32 spellXSpellVisualId);
         void Update(uint32 p_time) override;
         void Remove();
         void SetDuration(int32 newDuration);
@@ -63,6 +63,7 @@ class DynamicObject : public WorldObject, public GridObject<DynamicObject>, publ
         Aura* _removedAura;
         Unit* _caster;
         int32 _duration; // for non-aura dynobjects
+        uint32 _spellXSpellVisualId;
         bool _isViewpoint;
 };
 #endif

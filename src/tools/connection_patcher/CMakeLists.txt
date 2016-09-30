@@ -1,4 +1,4 @@
-# Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+# Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
 #
 # This file is free software; as a special exception the author gives
 # unlimited permission to copy and/or distribute it, with or without
@@ -7,15 +7,6 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY, to the extent permitted by law; without even the
 # implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-include_directories(
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/src/common
-  ${CMAKE_SOURCE_DIR}/src/common/Cryptography
-  ${CMAKE_SOURCE_DIR}/src/common/Debugging
-  ${CMAKE_SOURCE_DIR}/src/common/Utilities
-  ${OPENSSL_INCLUDE_DIR}
-)
 
 set(HEADER_FILES
   Helper.hpp
@@ -42,10 +33,8 @@ if (MSVC)
 endif ()
 
 target_link_libraries(connection_patcher
-  common
-  ${OPENSSL_LIBRARIES}
-  ${CMAKE_THREAD_LIBS_INIT}
-  ${Boost_LIBRARIES}
+  PUBLIC
+    common
 )
 
 if (UNIX)

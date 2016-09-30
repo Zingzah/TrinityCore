@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -144,7 +144,7 @@ public:
             Summons.DespawnAll();
 
             instance->SetBossState(DATA_ANUBARAK, NOT_STARTED);
-            instance->DoStopTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_TIMED_START_EVENT);
+            instance->DoStopCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_TIMED_START_EVENT);
         }
 
         Creature* DoSummonImpaleTarget(Unit* target)
@@ -167,7 +167,7 @@ public:
         {
             Talk(SAY_AGGRO);
             DelayTimer = 0;
-            instance->DoStartTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_TIMED_START_EVENT);
+            instance->DoStartCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_TIMED_START_EVENT);
         }
 
         void DelayEventStart()

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -25,14 +25,10 @@
 class Player;
 struct TaxiNodesEntry;
 
-class TaxiPathGraph
+class TC_GAME_API TaxiPathGraph
 {
 public:
-    static TaxiPathGraph& Instance()
-    {
-        static TaxiPathGraph instance;
-        return instance;
-    }
+    static TaxiPathGraph& Instance();
 
     void Initialize();
     std::size_t GetCompleteNodeRoute(TaxiNodesEntry const* from, TaxiNodesEntry const* to, Player const* player, std::vector<uint32>& shortestPath);
@@ -44,11 +40,11 @@ private:
         uint32 Distance;
         uint32 EvaluateDistance(Player const* player) const;
     };
-    typedef boost::adjacency_list<boost::listS, boost::vecS, boost::directedS, boost::property<boost::vertex_index_t, uint32>, boost::property<boost::edge_weight_t, EdgeCost>> Graph;
+    typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, boost::property<boost::vertex_index_t, uint32>, boost::property<boost::edge_weight_t, EdgeCost>> Graph;
     typedef boost::property_map<Graph, boost::edge_weight_t>::type WeightMap;
     typedef Graph::vertex_descriptor vertex_descriptor;
     typedef Graph::edge_descriptor edge_descriptor;
-    typedef std::pair<uint32, uint32> edge;
+    typedef std::pair<vertex_descriptor, vertex_descriptor> edge;
 
     TaxiPathGraph() { }
     ~TaxiPathGraph() { }

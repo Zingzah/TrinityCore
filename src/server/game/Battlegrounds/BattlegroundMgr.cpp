@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -73,6 +73,12 @@ void BattlegroundMgr::DeleteAllBattlegrounds()
     }
 
     bgDataStore.clear();
+}
+
+BattlegroundMgr* BattlegroundMgr::instance()
+{
+    static BattlegroundMgr instance;
+    return &instance;
 }
 
 // used to update running battlegrounds, and delete finished ones
@@ -440,7 +446,7 @@ bool BattlegroundMgr::CreateBattleground(BattlegroundTemplate const* bgTemplate)
     }
 
     bg->SetMapId(bgTemplate->BattlemasterEntry->MapID[0]);
-    bg->SetName(bgTemplate->BattlemasterEntry->Name_lang);
+    bg->SetName(bgTemplate->BattlemasterEntry->Name->Str[sWorld->GetDefaultDbcLocale()]);
     bg->SetInstanceID(0);
     bg->SetArenaorBGType(bgTemplate->IsArena());
     bg->SetMinPlayersPerTeam(bgTemplate->MinPlayersPerTeam);
@@ -489,7 +495,7 @@ void BattlegroundMgr::LoadBattlegroundTemplates()
         BattlemasterListEntry const* bl = sBattlemasterListStore.LookupEntry(bgTypeId);
         if (!bl)
         {
-            TC_LOG_ERROR("bg.battleground", "Battleground ID %u not found in BattlemasterList.dbc. Battleground not created.", bgTypeId);
+            TC_LOG_ERROR("bg.battleground", "Battleground ID %u could not be found in BattlemasterList.dbc. The battleground was not created.", bgTypeId);
             continue;
         }
 
@@ -507,14 +513,14 @@ void BattlegroundMgr::LoadBattlegroundTemplates()
 
         if (bgTemplate.MaxPlayersPerTeam == 0 || bgTemplate.MinPlayersPerTeam > bgTemplate.MaxPlayersPerTeam)
         {
-            TC_LOG_ERROR("sql.sql", "Table `battleground_template` for ID %u has bad values for MinPlayersPerTeam (%u) and MaxPlayersPerTeam(%u)",
+            TC_LOG_ERROR("sql.sql", "Table `battleground_template` for id %u contains bad values for MinPlayersPerTeam (%u) and MaxPlayersPerTeam(%u).",
                 bgTemplate.Id, bgTemplate.MinPlayersPerTeam, bgTemplate.MaxPlayersPerTeam);
             continue;
         }
 
         if (bgTemplate.MinLevel == 0 || bgTemplate.MaxLevel == 0 || bgTemplate.MinLevel > bgTemplate.MaxLevel)
         {
-            TC_LOG_ERROR("sql.sql", "Table `battleground_template` for ID %u has bad values for MinLevel (%u) and MaxLevel (%u)",
+            TC_LOG_ERROR("sql.sql", "Table `battleground_template` for id %u contains bad values for MinLevel (%u) and MaxLevel (%u).",
                 bgTemplate.Id, bgTemplate.MinLevel, bgTemplate.MaxLevel);
             continue;
         }
@@ -528,7 +534,7 @@ void BattlegroundMgr::LoadBattlegroundTemplates()
             }
             else
             {
-                TC_LOG_ERROR("sql.sql", "Table `battleground_template` for ID %u a non-existant WorldSafeLoc (ID: %u) in field `AllianceStartLoc`. BG not created.", bgTemplate.Id, startId);
+                TC_LOG_ERROR("sql.sql", "Table `battleground_template` for id %u contains a non-existing WorldSafeLocs.dbc id %u in field `AllianceStartLoc`. BG not created.", bgTemplate.Id, startId);
                 continue;
             }
 
@@ -539,7 +545,7 @@ void BattlegroundMgr::LoadBattlegroundTemplates()
             }
             else
             {
-                TC_LOG_ERROR("sql.sql", "Table `battleground_template` for ID %u has a non-existant WorldSafeLoc (ID: %u) in field `HordeStartLoc`. BG not created.", bgTemplate.Id, startId);
+                TC_LOG_ERROR("sql.sql", "Table `battleground_template` for id %u contains a non-existing WorldSafeLocs.dbc id %u in field `HordeStartLoc`. BG not created.", bgTemplate.Id, startId);
                 continue;
             }
         }
@@ -592,14 +598,16 @@ void BattlegroundMgr::SendToBattleground(Player* player, uint32 instanceId, Batt
         TC_LOG_ERROR("bg.battleground", "BattlegroundMgr::SendToBattleground: Instance %u (bgType %u) not found while trying to teleport player %s", instanceId, bgTypeId, player->GetName().c_str());
 }
 
-void BattlegroundMgr::SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid guid)
+void BattlegroundMgr::SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid const& guid)
 {
-    WorldPacket data(SMSG_AREA_SPIRIT_HEALER_TIME, 12);
     uint32 time_ = 30000 - bg->GetLastResurrectTime();      // resurrect every 30 seconds
     if (time_ == uint32(-1))
         time_ = 0;
-    data << guid << time_;
-    player->GetSession()->SendPacket(&data);
+
+    WorldPackets::Battleground::AreaSpiritHealerTime areaSpiritHealerTime;
+    areaSpiritHealerTime.HealerGuid = guid;
+    areaSpiritHealerTime.TimeLeft = time_;
+    player->GetSession()->SendPacket(areaSpiritHealerTime.Write());
 }
 
 bool BattlegroundMgr::IsArenaType(BattlegroundTypeId bgTypeId)
@@ -683,7 +691,7 @@ BattlegroundTypeId BattlegroundMgr::BGTemplateId(BattlegroundQueueTypeId bgQueue
         case BATTLEGROUND_QUEUE_5v5:
             return BATTLEGROUND_AA;
         default:
-            return BattlegroundTypeId(0);                   // used for unknown template (it existed and do nothing)
+            return BattlegroundTypeId(0);                   // used for unknown template (it exists and does nothing)
     }
 }
 
@@ -787,7 +795,7 @@ void BattlegroundMgr::LoadBattleMastersEntry()
         uint32 bgTypeId  = fields[1].GetUInt32();
         if (!sBattlemasterListStore.LookupEntry(bgTypeId))
         {
-            TC_LOG_ERROR("sql.sql", "Table `battlemaster_entry` contain entry %u for not existed battleground type %u, ignored.", entry, bgTypeId);
+            TC_LOG_ERROR("sql.sql", "Table `battlemaster_entry` contains entry %u for a non-existing battleground type %u, ignored.", entry, bgTypeId);
             continue;
         }
 
@@ -807,7 +815,7 @@ void BattlegroundMgr::CheckBattleMasters()
     {
         if ((itr->second.npcflag & UNIT_NPC_FLAG_BATTLEMASTER) && mBattleMastersMap.find(itr->second.Entry) == mBattleMastersMap.end())
         {
-            TC_LOG_ERROR("sql.sql", "CreatureTemplate (Entry: %u) has UNIT_NPC_FLAG_BATTLEMASTER but no data in `battlemaster_entry` table. Removing flag!", itr->second.Entry);
+            TC_LOG_ERROR("sql.sql", "Creature_Template Entry: %u has UNIT_NPC_FLAG_BATTLEMASTER, but no data in the `battlemaster_entry` table. Removing flag.", itr->second.Entry);
             const_cast<CreatureTemplate*>(&itr->second)->npcflag &= ~UNIT_NPC_FLAG_BATTLEMASTER;
         }
     }

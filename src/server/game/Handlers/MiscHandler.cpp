@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -47,6 +47,7 @@
 #include "AchievementPackets.h"
 #include "WhoPackets.h"
 #include "InstancePackets.h"
+#include "InstanceScript.h"
 
 void WorldSession::HandleRepopRequest(WorldPackets::Misc::RepopRequest& /*packet*/)
 {
@@ -197,8 +198,8 @@ void WorldSession::HandleWhoOpcode(WorldPackets::Who::WhoRequestPkt& whoRequest)
         if (!wWords.empty())
         {
             std::string aName;
-            if (AreaTableEntry const* areaEntry = GetAreaEntryByAreaID(target->GetZoneId()))
-                aName = areaEntry->AreaName_lang;
+            if (AreaTableEntry const* areaEntry = sAreaTableStore.LookupEntry(target->GetZoneId()))
+                aName = areaEntry->AreaName->Str[GetSessionDbcLocale()];
 
             bool show = false;
             for (size_t i = 0; i < wWords.size(); ++i)
@@ -316,8 +317,6 @@ void WorldSession::HandleLogoutCancelOpcode(WorldPackets::Character::LogoutCance
         //! DISABLE_ROTATE
         GetPlayer()->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
     }
-
-    TC_LOG_DEBUG("network", "WORLD: Sent SMSG_LOGOUT_CANCEL_ACK Message");
 }
 
 void WorldSession::HandleTogglePvP(WorldPackets::Misc::TogglePvP& /*packet*/)
@@ -449,6 +448,20 @@ void WorldSession::HandleResurrectResponse(WorldPackets::Misc::ResurrectResponse
     if (!GetPlayer()->IsResurrectRequestedBy(packet.Resurrecter))
         return;
 
+    if (Player* ressPlayer = ObjectAccessor::GetPlayer(*GetPlayer(), packet.Resurrecter))
+    {
+        if (InstanceScript* instance = ressPlayer->GetInstanceScript())
+        {
+            if (instance->IsEncounterInProgress())
+            {
+                if (!instance->GetCombatResurrectionCharges())
+                    return;
+                else
+                    instance->UseCombatResurrection();
+            }
+        }
+    }
+
     GetPlayer()->ResurrectUsingRequestData();
 }
 
@@ -470,7 +483,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
         return;
     }
 
-    if (!player->IsInAreaTriggerRadius(atEntry))
+    if (packet.Entered && !player->IsInAreaTriggerRadius(atEntry))
     {
         TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '%s' (%s) too far, ignore Area Trigger ID: %u",
             player->GetName().c_str(), player->GetGUID().ToString().c_str(), packet.AreaTriggerID);
@@ -485,22 +498,25 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
 
     if (player->IsAlive())
     {
-        if (uint32 questId = sObjectMgr->GetQuestForAreaTrigger(packet.AreaTriggerID))
+        if (std::unordered_set<uint32> const* quests = sObjectMgr->GetQuestsForAreaTrigger(packet.AreaTriggerID))
         {
-            Quest const* qInfo = sObjectMgr->GetQuestTemplate(questId);
-            if (qInfo && player->GetQuestStatus(questId) == QUEST_STATUS_INCOMPLETE)
+            for (uint32 questId : *quests)
             {
-                for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
+                Quest const* qInfo = sObjectMgr->GetQuestTemplate(questId);
+                if (qInfo && player->GetQuestStatus(questId) == QUEST_STATUS_INCOMPLETE)
                 {
-                    if (qInfo->Objectives[j].Type == QUEST_OBJECTIVE_AREATRIGGER)
+                    for (uint8 j = 0; j < qInfo->Objectives.size(); ++j)
                     {
-                        player->SetQuestObjectiveData(qInfo, j, int32(true));
-                        break;
+                        if (qInfo->Objectives[j].Type == QUEST_OBJECTIVE_AREATRIGGER)
+                        {
+                            player->SetQuestObjectiveData(qInfo, j, int32(true));
+                            break;
+                        }
                     }
-                }
 
-                if (player->CanCompleteQuest(questId))
-                    player->CompleteQuest(questId);
+                    if (player->CanCompleteQuest(questId))
+                        player->CompleteQuest(questId);
+                }
             }
         }
     }
@@ -517,8 +533,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
     }
 
     if (Battleground* bg = player->GetBattleground())
-        if (bg->GetStatus() == STATUS_IN_PROGRESS)
-            bg->HandleAreaTrigger(player, packet.AreaTriggerID, packet.Entered);
+        bg->HandleAreaTrigger(player, packet.AreaTriggerID, packet.Entered);
 
     if (OutdoorPvP* pvp = player->GetOutdoorPvP())
         if (pvp->HandleAreaTrigger(_player, packet.AreaTriggerID, packet.Entered))
@@ -531,8 +546,69 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
     bool teleported = false;
     if (player->GetMapId() != at->target_mapId)
     {
-        if (!sMapMgr->CanPlayerEnter(at->target_mapId, player, false))
+        if (Map::EnterState denyReason = sMapMgr->PlayerCannotEnter(at->target_mapId, player, false))
+        {
+            bool reviveAtTrigger = false; // should we revive the player if he is trying to enter the correct instance?
+            switch (denyReason)
+            {
+                case Map::CANNOT_ENTER_NO_ENTRY:
+                    TC_LOG_DEBUG("maps", "MAP: Player '%s' attempted to enter map with id %d which has no entry", player->GetName().c_str(), at->target_mapId);
+                    break;
+                case Map::CANNOT_ENTER_UNINSTANCED_DUNGEON:
+                    TC_LOG_DEBUG("maps", "MAP: Player '%s' attempted to enter dungeon map %d but no instance template was found", player->GetName().c_str(), at->target_mapId);
+                    break;
+                case Map::CANNOT_ENTER_DIFFICULTY_UNAVAILABLE:
+                    TC_LOG_DEBUG("maps", "MAP: Player '%s' attempted to enter instance map %d but the requested difficulty was not found", player->GetName().c_str(), at->target_mapId);
+                    if (MapEntry const* entry = sMapStore.LookupEntry(at->target_mapId))
+                        player->SendTransferAborted(entry->ID, TRANSFER_ABORT_DIFFICULTY, player->GetDifficultyID(entry));
+                    break;
+                case Map::CANNOT_ENTER_NOT_IN_RAID:
+                    TC_LOG_DEBUG("maps", "MAP: Player '%s' must be in a raid group to enter map %d", player->GetName().c_str(), at->target_mapId);
+                    player->SendRaidGroupOnlyMessage(RAID_GROUP_ERR_ONLY, 0);
+                    reviveAtTrigger = true;
+                    break;
+                case Map::CANNOT_ENTER_CORPSE_IN_DIFFERENT_INSTANCE:
+                    player->GetSession()->SendPacket(WorldPackets::Misc::AreaTriggerNoCorpse().Write());
+                    TC_LOG_DEBUG("maps", "MAP: Player '%s' does not have a corpse in instance map %d and cannot enter", player->GetName().c_str(), at->target_mapId);
+                    break;
+                case Map::CANNOT_ENTER_INSTANCE_BIND_MISMATCH:
+                    if (MapEntry const* entry = sMapStore.LookupEntry(at->target_mapId))
+                    {
+                        char const* mapName = entry->MapName->Str[player->GetSession()->GetSessionDbcLocale()];
+                        TC_LOG_DEBUG("maps", "MAP: Player '%s' cannot enter instance map '%s' because their permanent bind is incompatible with their group's", player->GetName().c_str(), mapName);
+                        // is there a special opcode for this?
+                        // @todo figure out how to get player localized difficulty string (e.g. "10 player", "Heroic" etc)
+                        ChatHandler(player->GetSession()).PSendSysMessage(player->GetSession()->GetTrinityString(LANG_INSTANCE_BIND_MISMATCH), mapName);
+                    }
+                    reviveAtTrigger = true;
+                    break;
+                case Map::CANNOT_ENTER_TOO_MANY_INSTANCES:
+                    player->SendTransferAborted(at->target_mapId, TRANSFER_ABORT_TOO_MANY_INSTANCES);
+                    TC_LOG_DEBUG("maps", "MAP: Player '%s' cannot enter instance map %d because he has exceeded the maximum number of instances per hour.", player->GetName().c_str(), at->target_mapId);
+                    reviveAtTrigger = true;
+                    break;
+                case Map::CANNOT_ENTER_MAX_PLAYERS:
+                    player->SendTransferAborted(at->target_mapId, TRANSFER_ABORT_MAX_PLAYERS);
+                    reviveAtTrigger = true;
+                    break;
+                case Map::CANNOT_ENTER_ZONE_IN_COMBAT:
+                    player->SendTransferAborted(at->target_mapId, TRANSFER_ABORT_ZONE_IN_COMBAT);
+                    reviveAtTrigger = true;
+                    break;
+                default:
+                    break;
+            }
+
+            if (reviveAtTrigger) // check if the player is touching the areatrigger leading to the map his corpse is on
+                if (!player->IsAlive() && player->HasCorpse())
+                    if (player->GetCorpseLocation().GetMapId() == at->target_mapId)
+                    {
+                        player->ResurrectPlayer(0.5f);
+                        player->SpawnCorpseBones();
+                    }
+
             return;
+        }
 
         if (Group* group = player->GetGroup())
             if (group->isLFGGroup() && player->GetMap()->IsDungeon())
@@ -540,7 +616,27 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::Misc::AreaTrigger& pack
     }
 
     if (!teleported)
-        player->TeleportTo(at->target_mapId, at->target_X, at->target_Y, at->target_Z, at->target_Orientation, TELE_TO_NOT_LEAVE_TRANSPORT);
+    {
+        WorldSafeLocsEntry const* entranceLocation = nullptr;
+        InstanceSave* instanceSave = player->GetInstanceSave(at->target_mapId);
+        if (instanceSave)
+        {
+            // Check if we can contact the instancescript of the instance for an updated entrance location
+            if (Map* map = sMapMgr->FindMap(at->target_mapId, player->GetInstanceSave(at->target_mapId)->GetInstanceId()))
+                if (InstanceMap* instanceMap = map->ToInstanceMap())
+                    if (InstanceScript* instanceScript = instanceMap->GetInstanceScript())
+                        entranceLocation = sWorldSafeLocsStore.LookupEntry(instanceScript->GetEntranceLocation());
+
+            // Finally check with the instancesave for an entrance location if we did not get a valid one from the instancescript
+            if (!entranceLocation)
+                entranceLocation = sWorldSafeLocsStore.LookupEntry(instanceSave->GetEntranceLocation());
+        }
+
+        if (entranceLocation)
+            player->TeleportTo(entranceLocation->MapID, entranceLocation->Loc.X, entranceLocation->Loc.Y, entranceLocation->Loc.Z, entranceLocation->Facing * M_PI / 180, TELE_TO_NOT_LEAVE_TRANSPORT);
+        else
+            player->TeleportTo(at->target_mapId, at->target_X, at->target_Y, at->target_Z, at->target_Orientation, TELE_TO_NOT_LEAVE_TRANSPORT);
+    }
 }
 
 void WorldSession::HandleUpdateAccountData(WorldPackets::ClientConfig::UserClientUpdateAccountData& packet)
@@ -719,64 +815,6 @@ void WorldSession::HandleWhoIsOpcode(WorldPackets::Who::WhoIsRequest& packet)
     WorldPackets::Who::WhoIsResponse response;
     response.AccountName = packet.CharName + "'s " + "account is " + acc + ", e-mail: " + email + ", last ip: " + lastip;
     SendPacket(response.Write());
-}
-
-void WorldSession::HandleComplainOpcode(WorldPacket& recvData)
-{
-    uint8 spam_type;                                        // 0 - mail, 1 - chat
-    ObjectGuid spammer_guid;
-    uint32 unk1 = 0;
-    uint32 unk2 = 0;
-    uint32 unk3 = 0;
-    uint32 unk4 = 0;
-    std::string description = "";
-    recvData >> spam_type;                                 // unk 0x01 const, may be spam type (mail/chat)
-    recvData >> spammer_guid;                              // player guid
-    switch (spam_type)
-    {
-        case 0:
-            recvData >> unk1;                              // const 0
-            recvData >> unk2;                              // probably mail id
-            recvData >> unk3;                              // const 0
-            break;
-        case 1:
-            recvData >> unk1;                              // probably language
-            recvData >> unk2;                              // message type?
-            recvData >> unk3;                              // probably channel id
-            recvData >> unk4;                              // time
-            recvData >> description;                       // spam description string (messagetype, channel name, player name, message)
-            break;
-    }
-
-    // NOTE: all chat messages from this spammer automatically ignored by spam reporter until logout in case chat spam.
-    // if it's mail spam - ALL mails from this spammer automatically removed by client
-
-    // Complaint Received message
-    WorldPacket data(SMSG_COMPLAINT_RESULT, 2);
-    data << uint8(0); // value 1 resets CGChat::m_complaintsSystemStatus in client. (unused?)
-    data << uint8(0); // value 0xC generates a "CalendarError" in client.
-    SendPacket(&data);
-
-    TC_LOG_DEBUG("network", "REPORT SPAM: type %u, %s, unk1 %u, unk2 %u, unk3 %u, unk4 %u, message %s",
-        spam_type, spammer_guid.ToString().c_str(), unk1, unk2, unk3, unk4, description.c_str());
-}
-
-void WorldSession::HandleRealmSplitOpcode(WorldPacket& recvData)
-{
-    uint32 unk;
-    std::string split_date = "01/01/01";
-    recvData >> unk;
-
-    WorldPacket data(SMSG_REALM_SPLIT, 4+4+split_date.size()+1);
-    data << unk;
-    data << uint32(0x00000000);                             // realm split state
-    // split states:
-    // 0x0 realm normal
-    // 0x1 realm split
-    // 0x2 realm split pending
-    data << split_date;
-    SendPacket(&data);
-    //TC_LOG_DEBUG("response sent %u", unk);
 }
 
 void WorldSession::HandleFarSightOpcode(WorldPackets::Misc::FarSight& packet)
@@ -1003,30 +1041,9 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDiff
     }
 }
 
-void WorldSession::HandleMoveSetCanFlyAckOpcode(WorldPacket& /*recvData*/)
+void WorldSession::HandleSetTaxiBenchmark(WorldPackets::Misc::SetTaxiBenchmarkMode& packet)
 {
-    // fly mode on/off
-    MovementInfo movementInfo;
-    _player->ValidateMovementInfo(&movementInfo);
-
-    _player->m_mover->m_movementInfo.flags = movementInfo.GetMovementFlags();
-}
-
-void WorldSession::HandleRequestPetInfoOpcode(WorldPacket& /*recvData */)
-{
-    /*
-        recvData.hexlike();
-    */
-}
-
-void WorldSession::HandleSetTaxiBenchmarkOpcode(WorldPacket& recvData)
-{
-    uint8 mode;
-    recvData >> mode;
-
-    mode ? _player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_TAXI_BENCHMARK) : _player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_TAXI_BENCHMARK);
-
-    TC_LOG_DEBUG("network", "Client used \"/timetest %d\" command", mode);
+    _player->ApplyModFlag(PLAYER_FLAGS, PLAYER_FLAGS_TAXI_BENCHMARK, packet.Enable);
 }
 
 void WorldSession::HandleGuildSetFocusedAchievement(WorldPackets::Achievement::GuildSetFocusedAchievement& setFocusedAchievement)
@@ -1068,48 +1085,6 @@ void WorldSession::HandleInstanceLockResponse(WorldPackets::Instance::InstanceLo
         _player->RepopAtGraveyard();
 
     _player->SetPendingBind(0, 0);
-}
-
-void WorldSession::HandleUpdateMissileTrajectory(WorldPacket& recvPacket)
-{
-    ObjectGuid guid;
-    uint32 spellId;
-    float pitch, speed;
-    float curX, curY, curZ;
-    float targetX, targetY, targetZ;
-    uint8 moveStop;
-
-    recvPacket >> guid >> spellId >> pitch >> speed;
-    recvPacket >> curX >> curY >> curZ;
-    recvPacket >> targetX >> targetY >> targetZ;
-    recvPacket >> moveStop;
-
-    Unit* caster = ObjectAccessor::GetUnit(*_player, guid);
-    Spell* spell = caster ? caster->GetCurrentSpell(CURRENT_GENERIC_SPELL) : NULL;
-    if (!spell || spell->m_spellInfo->Id != spellId || !spell->m_targets.HasDst() || !spell->m_targets.HasSrc())
-    {
-        recvPacket.rfinish();
-        return;
-    }
-
-    Position pos = *spell->m_targets.GetSrcPos();
-    pos.Relocate(curX, curY, curZ);
-    spell->m_targets.ModSrc(pos);
-
-    pos = *spell->m_targets.GetDstPos();
-    pos.Relocate(targetX, targetY, targetZ);
-    spell->m_targets.ModDst(pos);
-
-    spell->m_targets.SetPitch(pitch);
-    spell->m_targets.SetSpeed(speed);
-
-    if (moveStop)
-    {
-        uint32 opcode;
-        recvPacket >> opcode;
-        recvPacket.SetOpcode(CMSG_MOVE_STOP); // always set to CMSG_MOVE_STOP in client SetOpcode
-        //HandleMovementOpcodes(recvPacket);
-    }
 }
 
 void WorldSession::HandleViolenceLevel(WorldPackets::Misc::ViolenceLevel& /*violenceLevel*/)
@@ -1171,4 +1146,11 @@ void WorldSession::SendLoadCUFProfiles()
 void WorldSession::HandleSetAdvancedCombatLogging(WorldPackets::ClientConfig::SetAdvancedCombatLogging& setAdvancedCombatLogging)
 {
     _player->SetAdvancedCombatLogging(setAdvancedCombatLogging.Enable);
+}
+
+void WorldSession::HandleMountSpecialAnimOpcode(WorldPackets::Misc::MountSpecial& /*mountSpecial*/)
+{
+    WorldPackets::Misc::SpecialMountAnim specialMountAnim;
+    specialMountAnim.UnitGUID = _player->GetGUID();
+    GetPlayer()->SendMessageToSet(specialMountAnim.Write(), false);
 }

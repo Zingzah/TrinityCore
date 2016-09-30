@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -19,7 +19,6 @@
 #include "Common.h"
 #include "Corpse.h"
 #include "Player.h"
-#include "UpdateMask.h"
 #include "ObjectAccessor.h"
 #include "DatabaseEnv.h"
 
@@ -120,7 +119,7 @@ void Corpse::SaveToDB()
     {
         index = 0;
         stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CORPSE_PHASES);
-        stmt->setUInt32(index++, GetOwnerGUID().GetCounter());                        // OwnerGuid
+        stmt->setUInt64(index++, GetOwnerGUID().GetCounter());                        // OwnerGuid
         stmt->setUInt32(index++, phaseId);                                            // PhaseId
         trans->Append(stmt);
     }
@@ -159,7 +158,7 @@ bool Corpse::LoadCorpseFromDB(ObjectGuid::LowType guid, Field* fields)
 
     SetObjectScale(1.0f);
     SetUInt32Value(CORPSE_FIELD_DISPLAY_ID, fields[5].GetUInt32());
-    _LoadIntoDataField(fields[6].GetCString(), CORPSE_FIELD_ITEM, EQUIPMENT_SLOT_END);
+    _LoadIntoDataField(fields[6].GetString(), CORPSE_FIELD_ITEM, EQUIPMENT_SLOT_END);
     SetUInt32Value(CORPSE_FIELD_BYTES_1, fields[7].GetUInt32());
     SetUInt32Value(CORPSE_FIELD_BYTES_2, fields[8].GetUInt32());
     SetUInt32Value(CORPSE_FIELD_FLAGS, fields[9].GetUInt8());

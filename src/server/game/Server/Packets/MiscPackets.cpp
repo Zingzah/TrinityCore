@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -47,20 +47,23 @@ WorldPacket const* WorldPackets::Misc::LoginSetTimeSpeed::Write()
 
 WorldPacket const* WorldPackets::Misc::SetCurrency::Write()
 {
-    _worldPacket << uint32(Type);
-    _worldPacket << uint32(Quantity);
+    _worldPacket << int32(Type);
+    _worldPacket << int32(Quantity);
     _worldPacket << uint32(Flags);
     _worldPacket.WriteBit(WeeklyQuantity.is_initialized());
     _worldPacket.WriteBit(TrackedQuantity.is_initialized());
+    _worldPacket.WriteBit(MaxQuantity.is_initialized());
     _worldPacket.WriteBit(SuppressChatLog);
+    _worldPacket.FlushBits();
 
     if (WeeklyQuantity)
-        _worldPacket << uint32(*WeeklyQuantity);
+        _worldPacket << int32(*WeeklyQuantity);
 
     if (TrackedQuantity)
-        _worldPacket << uint32(*TrackedQuantity);
+        _worldPacket << int32(*TrackedQuantity);
 
-    _worldPacket.FlushBits();
+    if (MaxQuantity)
+        _worldPacket << int32(*MaxQuantity);
 
     return &_worldPacket;
 }
@@ -76,14 +79,15 @@ WorldPacket const* WorldPackets::Misc::SetupCurrency::Write()
 
     for (Record const& data : Data)
     {
-        _worldPacket << uint32(data.Type);
-        _worldPacket << uint32(data.Quantity);
+        _worldPacket << int32(data.Type);
+        _worldPacket << int32(data.Quantity);
 
         _worldPacket.WriteBit(data.WeeklyQuantity.is_initialized());
         _worldPacket.WriteBit(data.MaxWeeklyQuantity.is_initialized());
         _worldPacket.WriteBit(data.TrackedQuantity.is_initialized());
-
+        _worldPacket.WriteBit(data.MaxQuantity.is_initialized());
         _worldPacket.WriteBits(data.Flags, 5);
+        _worldPacket.FlushBits();
 
         if (data.WeeklyQuantity)
             _worldPacket << uint32(*data.WeeklyQuantity);
@@ -91,9 +95,9 @@ WorldPacket const* WorldPackets::Misc::SetupCurrency::Write()
             _worldPacket << uint32(*data.MaxWeeklyQuantity);
         if (data.TrackedQuantity)
             _worldPacket << uint32(*data.TrackedQuantity);
+        if (data.MaxQuantity)
+            _worldPacket << int32(*data.MaxQuantity);
     }
-
-    _worldPacket.FlushBits();
 
     return &_worldPacket;
 }
@@ -155,11 +159,9 @@ WorldPacket const* WorldPackets::Misc::WorldServerInfo::Write()
 {
     _worldPacket << uint32(DifficultyID);
     _worldPacket << uint8(IsTournamentRealm);
-    _worldPacket << uint32(WeeklyReset);
     _worldPacket.WriteBit(XRealmPvpAlert);
     _worldPacket.WriteBit(RestrictedAccountMaxLevel.is_initialized());
     _worldPacket.WriteBit(RestrictedAccountMaxMoney.is_initialized());
-    _worldPacket.WriteBit(IneligibleForLootMask.is_initialized());
     _worldPacket.WriteBit(InstanceGroupSize.is_initialized());
 
     if (RestrictedAccountMaxLevel)
@@ -167,9 +169,6 @@ WorldPacket const* WorldPackets::Misc::WorldServerInfo::Write()
 
     if (RestrictedAccountMaxMoney)
         _worldPacket << uint32(*RestrictedAccountMaxMoney);
-
-    if (IneligibleForLootMask)
-        _worldPacket << uint32(*IneligibleForLootMask);
 
     if (InstanceGroupSize)
         _worldPacket << uint32(*InstanceGroupSize);
@@ -524,6 +523,14 @@ WorldPacket const* WorldPackets::Misc::LoadCUFProfiles::Write()
     return &_worldPacket;
 }
 
+WorldPacket const* WorldPackets::Misc::PlayOneShotAnimKit::Write()
+{
+    _worldPacket << Unit;
+    _worldPacket << uint16(AnimKitID);
+
+    return &_worldPacket;
+}
+
 WorldPacket const* WorldPackets::Misc::SetAIAnimKit::Write()
 {
     _worldPacket << Unit;
@@ -568,6 +575,7 @@ void WorldPackets::Misc::WorldTeleport::Read()
     _worldPacket >> TransportGUID;
     _worldPacket >> Pos;
     _worldPacket >> Facing;
+    _worldPacket >> LfgDungeonID;
 }
 
 WorldPacket const* WorldPackets::Misc::AccountHeirloomUpdate::Write()
@@ -586,6 +594,51 @@ WorldPacket const* WorldPackets::Misc::AccountHeirloomUpdate::Write()
 
     for (auto const& flags : *Heirlooms)
         _worldPacket << uint32(flags.second.flags);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::SpecialMountAnim::Write()
+{
+    _worldPacket << UnitGUID;
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::CrossedInebriationThreshold::Write()
+{
+    _worldPacket << Guid;
+    _worldPacket << int32(Threshold);
+    _worldPacket << int32(ItemID);
+
+    return &_worldPacket;
+}
+
+void WorldPackets::Misc::SetTaxiBenchmarkMode::Read()
+{
+    Enable = _worldPacket.ReadBit();
+}
+
+WorldPacket const* WorldPackets::Misc::OverrideLight::Write()
+{
+    _worldPacket << int32(AreaLightID);
+    _worldPacket << int32(OverrideLightID);
+    _worldPacket << int32(TransitionMilliseconds);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::DisplayGameError::Write()
+{
+    _worldPacket << uint32(Error);
+    _worldPacket.WriteBit(Arg.is_initialized());
+    _worldPacket.WriteBit(Arg2.is_initialized());
+    _worldPacket.FlushBits();
+
+    if (Arg)
+        _worldPacket << int32(*Arg);
+
+    if (Arg2)
+        _worldPacket << int32(*Arg2);
 
     return &_worldPacket;
 }

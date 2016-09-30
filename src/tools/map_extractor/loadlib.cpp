@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2011 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -96,7 +96,8 @@ u_map_fcc InterestingChunks[] =
     { { 'K', 'N', 'C', 'M' } },
     { { 'T', 'V', 'C', 'M' } },
     { { 'O', 'M', 'W', 'M' } },
-    { { 'Q', 'L', 'C', 'M' } }
+    { { 'Q', 'L', 'C', 'M' } },
+    { { 'O', 'B', 'F', 'M' } }
 };
 
 bool IsInterestingChunk(u_map_fcc const& fcc)

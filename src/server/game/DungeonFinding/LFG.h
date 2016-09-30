@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -99,7 +99,7 @@ enum LfgAnswer
     LFG_ANSWER_AGREE                             = 1
 };
 
-struct LfgLockInfoData
+struct TC_GAME_API LfgLockInfoData
 {
     LfgLockInfoData(uint32 _lockStatus = 0, uint16 _requiredItemLevel = 0, float _currentItemLevel = 0) :
         lockStatus(_lockStatus), requiredItemLevel(_requiredItemLevel), currentItemLevel(_currentItemLevel) { }
@@ -115,9 +115,9 @@ typedef std::map<ObjectGuid, LfgLockMap> LfgLockPartyMap;
 typedef std::map<ObjectGuid, uint8> LfgRolesMap;
 typedef std::map<ObjectGuid, ObjectGuid> LfgGroupsMap;
 
-std::string ConcatenateDungeons(LfgDungeonSet const& dungeons);
-std::string GetRolesString(uint8 roles);
-std::string GetStateString(LfgState state);
+TC_GAME_API std::string ConcatenateDungeons(LfgDungeonSet const& dungeons);
+TC_GAME_API std::string GetRolesString(uint8 roles);
+TC_GAME_API std::string GetStateString(LfgState state);
 
 } // namespace lfg
 

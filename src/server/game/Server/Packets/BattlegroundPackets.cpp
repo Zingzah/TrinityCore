@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,6 +35,14 @@ void WorldPackets::Battleground::AreaSpiritHealerQueue::Read()
     _worldPacket >> HealerGuid;
 }
 
+WorldPacket const* WorldPackets::Battleground::AreaSpiritHealerTime::Write()
+{
+    _worldPacket << HealerGuid;
+    _worldPacket << int32(TimeLeft);
+
+    return &_worldPacket;
+}
+
 ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Battleground::PVPLogData::RatingData const& ratingData)
 {
     data.append(ratingData.Prematch, 2);
@@ -59,8 +67,9 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Battleground::PVPLogData:
     data << uint32(playerData.HealingDone);
     data << uint32(playerData.Stats.size());
     data << int32(playerData.PrimaryTalentTree);
-    data << uint32(playerData.PrimaryTalentTreeNameIndex);
-    data << uint32(playerData.Race);
+    data << int32(playerData.PrimaryTalentTreeNameIndex);
+    data << int32(playerData.Race);
+    data << uint32(playerData.Prestige);
     if (!playerData.Stats.empty())
         data.append(playerData.Stats.data(), playerData.Stats.size());
 
@@ -118,6 +127,12 @@ void WorldPackets::Battleground::BattlemasterJoin::Read()
     _worldPacket >> Roles;
     _worldPacket >> BlacklistMap[0] >> BlacklistMap[1];
     JoinAsGroup = _worldPacket.ReadBit();
+}
+
+void WorldPackets::Battleground::BattlemasterJoinArena::Read()
+{
+    _worldPacket >> TeamSizeIndex;
+    _worldPacket >> Roles;
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Battleground::BattlefieldStatusHeader const& header)

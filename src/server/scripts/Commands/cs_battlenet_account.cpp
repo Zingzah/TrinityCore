@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -84,18 +84,25 @@ public:
         if (createGameAccountParam)
             createGameAccount = StringToBool(createGameAccountParam);
 
-        switch (Battlenet::AccountMgr::CreateBattlenetAccount(std::string(accountName), std::string(password), createGameAccount))
+        std::string gameAccountName;
+        switch (Battlenet::AccountMgr::CreateBattlenetAccount(std::string(accountName), std::string(password), createGameAccount, &gameAccountName))
         {
             case AccountOpResult::AOR_OK:
-                handler->PSendSysMessage(LANG_ACCOUNT_CREATED, accountName);
+            {
+                if (createGameAccount)
+                    handler->PSendSysMessage(LANG_ACCOUNT_CREATED_BNET_WITH_GAME, accountName, gameAccountName.c_str());
+                else
+                    handler->PSendSysMessage(LANG_ACCOUNT_CREATED_BNET, accountName);
+
                 if (handler->GetSession())
                 {
-                    TC_LOG_INFO("entities.player.character", "Battle.net account: %u (IP: %s) Character:[%s] (%s) created Account %s",
+                    TC_LOG_INFO("entities.player.character", "Account: %u (IP: %s) Character:[%s] (%s) created Battle.net account %s%s%s",
                         handler->GetSession()->GetAccountId(), handler->GetSession()->GetRemoteAddress().c_str(),
                         handler->GetSession()->GetPlayer()->GetName().c_str(), handler->GetSession()->GetPlayer()->GetGUID().ToString().c_str(),
-                        accountName);
+                        accountName, createGameAccount ? " with game account " : "", createGameAccount ? gameAccountName.c_str() : "");
                 }
                 break;
+            }
             case AccountOpResult::AOR_NAME_TOO_LONG:
                 handler->SendSysMessage(LANG_ACCOUNT_TOO_LONG);
                 handler->SetSentErrorMessage(true);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -54,6 +54,7 @@ namespace WorldPackets
             uint8 Index = 0;
             bool Usable = false;
             std::vector<InspectEnchantData> Enchants;
+            std::vector<Item::ItemGemInstanceData> Gems;
         };
 
         struct InspectGuildData
@@ -70,13 +71,14 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
+            ObjectGuid InspecteeGUID;
             std::vector<InspectItemData> Items;
+            std::vector<uint16> Glyphs;
+            std::vector<uint16> Talents;
+            std::vector<uint16> PvpTalents;
             int32 ClassID = CLASS_NONE;
             int32 GenderID = GENDER_NONE;
-            std::vector<uint16> Talents;
-            std::vector<uint16> Glyphs;
             Optional<InspectGuildData> GuildData;
-            ObjectGuid InspecteeGUID;
             int32 SpecializationID = 0;
         };
 

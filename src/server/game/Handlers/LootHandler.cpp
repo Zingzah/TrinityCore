@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -185,7 +185,7 @@ void WorldSession::HandleLootMoneyOpcode(WorldPackets::Loot::LootMoney& /*packet
             for (std::vector<Player*>::const_iterator i = playersNear.begin(); i != playersNear.end(); ++i)
             {
                 (*i)->ModifyMoney(goldPerPlayer);
-                (*i)->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_MONEY, goldPerPlayer);
+                (*i)->UpdateCriteria(CRITERIA_TYPE_LOOT_MONEY, goldPerPlayer);
 
                 if (Guild* guild = sGuildMgr->GetGuildById((*i)->GetGuildId()))
                     if (uint32 guildGold = CalculatePct(goldPerPlayer, (*i)->GetTotalAuraModifier(SPELL_AURA_DEPOSIT_BONUS_MONEY_IN_GUILD_BANK_ON_LOOT)))
@@ -200,7 +200,7 @@ void WorldSession::HandleLootMoneyOpcode(WorldPackets::Loot::LootMoney& /*packet
         else
         {
             player->ModifyMoney(loot->gold);
-            player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_MONEY, loot->gold);
+            player->UpdateCriteria(CRITERIA_TYPE_LOOT_MONEY, loot->gold);
 
             if (Guild* guild = sGuildMgr->GetGuildById(player->GetGuildId()))
                 if (uint32 guildGold = CalculatePct(loot->gold, player->GetTotalAuraModifier(SPELL_AURA_DEPOSIT_BONUS_MONEY_IN_GUILD_BANK_ON_LOOT)))
@@ -323,7 +323,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         ItemTemplate const* proto = pItem->GetTemplate();
 
         // destroy only 5 items from stack in case prospecting and milling
-        if (proto->GetFlags() & (ITEM_FLAG_PROSPECTABLE | ITEM_FLAG_MILLABLE))
+        if (proto->GetFlags() & (ITEM_FLAG_IS_PROSPECTABLE | ITEM_FLAG_IS_MILLABLE))
         {
             pItem->m_lootGenerated = false;
             pItem->loot.clear();
@@ -339,7 +339,7 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
         else
         {
             // Only delete item if no loot or money (unlooted loot is saved to db) or if it isn't an openable item
-            if (pItem->loot.isLooted() || !(proto->GetFlags() & ITEM_FLAG_OPENABLE))
+            if (pItem->loot.isLooted() || !(proto->GetFlags() & ITEM_FLAG_HAS_LOOT))
                 player->DestroyItem(pItem->GetBagSlot(), pItem->GetSlot(), true);
         }
         return;                                             // item can be looted only single player
@@ -471,9 +471,9 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recvData)
     // now move item from loot to target inventory
     Item* newitem = target->StoreNewItem(dest, item.itemid, true, item.randomPropertyId, item.GetAllowedLooters(), item.BonusListIDs);
     target->SendNewItem(newitem, uint32(item.count), false, false, true);
-    target->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_ITEM, item.itemid, item.count);
-    target->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_TYPE, item.itemid, item.count, loot->loot_type);
-    target->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_EPIC_ITEM, item.itemid, item.count);
+    target->UpdateCriteria(CRITERIA_TYPE_LOOT_ITEM, item.itemid, item.count);
+    target->UpdateCriteria(CRITERIA_TYPE_LOOT_TYPE, item.itemid, item.count, loot->loot_type);
+    target->UpdateCriteria(CRITERIA_TYPE_LOOT_EPIC_ITEM, item.itemid, item.count);
 
     // mark as looted
     item.count = 0;

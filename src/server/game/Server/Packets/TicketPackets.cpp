@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,6 +18,7 @@
 #include "LFGPackets.h"
 #include "TicketPackets.h"
 #include "PacketUtilities.h"
+#include "SupportMgr.h"
 
 using namespace WorldPackets;
 
@@ -52,6 +53,9 @@ WorldPacket const* WorldPackets::Ticket::GMTicketCaseStatus::Write()
 
         _worldPacket.WriteBits(c.Url.size(), 11);
         _worldPacket.WriteBits(c.WaitTimeOverrideMessage.size(), 10);
+
+        _worldPacket.WriteString(c.Url);
+        _worldPacket.WriteString(c.WaitTimeOverrideMessage);
     }
 
     _worldPacket.FlushBits();
@@ -96,15 +100,14 @@ ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Ticket::SupportTicketSubm
 ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Ticket::SupportTicketSubmitComplaint::SupportTicketChatLog& chatlog)
 {
     uint32 linesCount = data.read<uint32>();
+    bool hasReportLineIndex = data.ReadBit();
+    data.ResetBitPos();
 
     for (uint32 i = 0; i < linesCount; i++)
         chatlog.Lines.emplace_back(data);
 
-    bool hasReportLineIndex = data.ReadBit();
     if (hasReportLineIndex)
         chatlog.ReportLineIndex = data.read<uint32>();
-
-    data.ResetBitPos();
 
     return data;
 }
@@ -202,10 +205,10 @@ void WorldPackets::Ticket::SupportTicketSubmitComplaint::Read()
 
     _worldPacket.ResetBitPos();
 
-    Note = _worldPacket.ReadString(noteLength);
-
     if (hasMailInfo)
         _worldPacket >> MailInfo;
+
+    Note = _worldPacket.ReadString(noteLength);
 
     if (hasCalendarInfo)
         _worldPacket >> CalenderInfo;
@@ -221,6 +224,46 @@ void WorldPackets::Ticket::SupportTicketSubmitComplaint::Read()
 
     if (hasLFGListApplicant)
         _worldPacket >> LFGListApplicant;
+}
+
+ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Ticket::Complaint::ComplaintOffender& complaintOffender)
+{
+    data >> complaintOffender.PlayerGuid;
+    data >> complaintOffender.RealmAddress;
+    data >> complaintOffender.TimeSinceOffence;
+
+    return data;
+}
+
+ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Ticket::Complaint::ComplaintChat& chat)
+{
+    data >> chat.Command;
+    data >> chat.ChannelID;
+    chat.MessageLog = data.ReadString(data.ReadBits(12));
+
+    return data;
+}
+
+void WorldPackets::Ticket::Complaint::Read()
+{
+    _worldPacket >> ComplaintType;
+    _worldPacket >> Offender;
+
+    switch (ComplaintType)
+    {
+        case SUPPORT_SPAM_TYPE_MAIL:
+            _worldPacket >> MailID;
+            break;
+        case SUPPORT_SPAM_TYPE_CHAT:
+            _worldPacket >> Chat;
+            break;
+        case SUPPORT_SPAM_TYPE_CALENDAR:
+            _worldPacket >> EventGuid;
+            _worldPacket >> InviteGuid;
+            break;
+        default:
+            break;
+    }
 }
 
 WorldPacket const* WorldPackets::Ticket::ComplaintResult::Write()

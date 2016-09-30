@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,7 +16,6 @@
  */
 
 #include "Log.h"
-#include "DBCStores.h"
 #include "ObjectMgr.h"
 #include "AuctionHouseMgr.h"
 #include "AuctionHouseBotSeller.h"
@@ -143,23 +142,23 @@ bool AuctionBotSeller::Initialize()
         // bounding filters
         switch (prototype->GetBonding())
         {
-            case NO_BIND:
+            case BIND_NONE:
                 if (!sAuctionBotConfig->GetConfig(CONFIG_AHBOT_BIND_NO))
                     continue;
                 break;
-            case BIND_WHEN_PICKED_UP:
+            case BIND_ON_ACQUIRE:
                 if (!sAuctionBotConfig->GetConfig(CONFIG_AHBOT_BIND_PICKUP))
                     continue;
                 break;
-            case BIND_WHEN_EQUIPED:
+            case BIND_ON_EQUIP:
                 if (!sAuctionBotConfig->GetConfig(CONFIG_AHBOT_BIND_EQUIP))
                     continue;
                 break;
-            case BIND_WHEN_USE:
+            case BIND_ON_USE:
                 if (!sAuctionBotConfig->GetConfig(CONFIG_AHBOT_BIND_USE))
                     continue;
                 break;
-            case BIND_QUEST_ITEM:
+            case BIND_QUEST:
                 if (!sAuctionBotConfig->GetConfig(CONFIG_AHBOT_BIND_QUEST))
                     continue;
                 break;
@@ -304,7 +303,7 @@ bool AuctionBotSeller::Initialize()
                 break;
             }
             case ITEM_CLASS_MISCELLANEOUS:
-                if (prototype->GetSubClass() == ITEM_SUBCLASS_JUNK_MOUNT)
+                if (prototype->GetSubClass() == ITEM_SUBCLASS_MISCELLANEOUS_MOUNT)
                 {
                     if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_MISC_MOUNT_MIN_REQ_LEVEL))
                         if (prototype->GetBaseRequiredLevel() < static_cast<int32>(value))
@@ -428,7 +427,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_REAGENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_PROJECTILE, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_AMOUNT));
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_GENERIC, 0);
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_ITEM_ENHANCEMENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_RECIPE, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_QUIVER, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GRAY, ITEM_CLASS_QUEST, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUEST_AMOUNT));
@@ -444,7 +443,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_REAGENT, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_REAGENT_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_PROJECTILE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_PROJECTILE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_AMOUNT));
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_GENERIC, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_GENERIC_AMOUNT));
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_ITEM_ENHANCEMENT, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_GENERIC_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_RECIPE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RECIPE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_QUIVER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUIVER_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_WHITE, ITEM_CLASS_QUEST, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUEST_AMOUNT));
@@ -460,7 +459,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_REAGENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_PROJECTILE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_PROJECTILE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_AMOUNT));
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_GENERIC, 0);
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_ITEM_ENHANCEMENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_RECIPE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RECIPE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_QUIVER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUIVER_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_GREEN, ITEM_CLASS_QUEST, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUEST_AMOUNT));
@@ -476,7 +475,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_REAGENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_PROJECTILE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_PROJECTILE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_AMOUNT));
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_GENERIC, 0);
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_ITEM_ENHANCEMENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_RECIPE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RECIPE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_QUIVER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUIVER_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_BLUE, ITEM_CLASS_QUEST, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUEST_AMOUNT));
@@ -492,7 +491,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_REAGENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_PROJECTILE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_PROJECTILE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_AMOUNT));
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_GENERIC, 0);
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_ITEM_ENHANCEMENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_RECIPE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RECIPE_AMOUNT));
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_QUIVER, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_PURPLE, ITEM_CLASS_QUEST, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUEST_AMOUNT));
@@ -508,7 +507,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_REAGENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_PROJECTILE, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_AMOUNT));
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_GENERIC, 0);
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_ITEM_ENHANCEMENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_RECIPE, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_QUIVER, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_ORANGE, ITEM_CLASS_QUEST, 0);
@@ -524,7 +523,7 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_REAGENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_PROJECTILE, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_TRADE_GOODS, 0);
-    config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_GENERIC, 0);
+    config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_ITEM_ENHANCEMENT, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_RECIPE, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_QUIVER, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_QUEST, 0);
@@ -532,6 +531,23 @@ void AuctionBotSeller::LoadItemsQuantity(SellerConfiguration& config)
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_MISCELLANEOUS, 0);
     config.SetItemsQuantityPerClass(AUCTION_QUALITY_YELLOW, ITEM_CLASS_GLYPH, 0);
     // ============================================================================================
+
+    // Set Stack Quantities
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_CONSUMABLE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_CONSUMABLE));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_CONTAINER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_CONTAINER));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_WEAPON, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_WEAPON));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_GEM, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_GEM));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_ARMOR, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_ARMOR));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_REAGENT, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_REAGENT));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_PROJECTILE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_PROJECTILE));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_TRADEGOOD));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_ITEM_ENHANCEMENT, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_GENERIC));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_RECIPE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_RECIPE));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_QUIVER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_QUIVER));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_QUEST, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_QUEST));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_KEY, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_KEY));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_MISCELLANEOUS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_MISC));
+    config.SetRandomStackRatioPerClass(ITEM_CLASS_GLYPH, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RANDOMSTACKRATIO_GLYPH));
 
     // Set the best value to get nearest amount of items wanted
     for (uint32 j = 0; j < MAX_AUCTION_QUALITY; ++j)
@@ -565,13 +581,13 @@ void AuctionBotSeller::LoadSellerValues(SellerConfiguration& config)
             break;
     }
 
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_GRAY, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_GRAY_PRICE_RATIO) / 100);
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_WHITE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_WHITE_PRICE_RATIO) / 100);
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_GREEN, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_GREEN_PRICE_RATIO) / 100);
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_BLUE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_BLUE_PRICE_RATIO) / 100);
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_PURPLE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_PURPLE_PRICE_RATIO) / 100);
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_ORANGE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_ORANGE_PRICE_RATIO) / 100);
-    config.SetPriceRatioPerQuality(AUCTION_QUALITY_YELLOW, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_YELLOW_PRICE_RATIO) / 100);
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_GRAY, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_GRAY_PRICE_RATIO));
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_WHITE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_WHITE_PRICE_RATIO));
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_GREEN, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_GREEN_PRICE_RATIO));
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_BLUE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_BLUE_PRICE_RATIO));
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_PURPLE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_PURPLE_PRICE_RATIO));
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_ORANGE, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_ORANGE_PRICE_RATIO));
+    config.SetPriceRatioPerQuality(AUCTION_QUALITY_YELLOW, PriceRatio * sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_YELLOW_PRICE_RATIO));
 
     config.SetPriceRatioPerClass(ITEM_CLASS_CONSUMABLE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_CONSUMABLE_PRICE_RATIO));
     config.SetPriceRatioPerClass(ITEM_CLASS_CONTAINER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_CONTAINER_PRICE_RATIO));
@@ -581,7 +597,7 @@ void AuctionBotSeller::LoadSellerValues(SellerConfiguration& config)
     config.SetPriceRatioPerClass(ITEM_CLASS_REAGENT, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_REAGENT_PRICE_RATIO));
     config.SetPriceRatioPerClass(ITEM_CLASS_PROJECTILE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_PROJECTILE_PRICE_RATIO));
     config.SetPriceRatioPerClass(ITEM_CLASS_TRADE_GOODS, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_PRICE_RATIO));
-    config.SetPriceRatioPerClass(ITEM_CLASS_GENERIC, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_GENERIC_PRICE_RATIO));
+    config.SetPriceRatioPerClass(ITEM_CLASS_ITEM_ENHANCEMENT, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_GENERIC_PRICE_RATIO));
     config.SetPriceRatioPerClass(ITEM_CLASS_RECIPE, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_RECIPE_PRICE_RATIO));
     config.SetPriceRatioPerClass(ITEM_CLASS_MONEY, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_MONEY_PRICE_RATIO));
     config.SetPriceRatioPerClass(ITEM_CLASS_QUIVER, sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_QUIVER_PRICE_RATIO));
@@ -684,10 +700,10 @@ void AuctionBotSeller::SetPricesOfItem(ItemTemplate const* itemProto, SellerConf
 {
     uint32 classRatio = config.GetPriceRatioPerClass(ItemClass(itemProto->GetClass()));
     uint32 qualityRatio = config.GetPriceRatioPerQuality(AuctionQuality(itemProto->GetQuality()));
-    uint32 priceRatio = (classRatio * qualityRatio) / 100;
+    float priceRatio = (classRatio * qualityRatio) / 10000.0f;
 
-    uint32 buyPrice = itemProto->GetBuyPrice();
-    uint32 sellPrice = itemProto->GetSellPrice();
+    float buyPrice = itemProto->GetBuyPrice();
+    float sellPrice = itemProto->GetSellPrice();
 
     if (buyPrice == 0)
     {
@@ -695,11 +711,11 @@ void AuctionBotSeller::SetPricesOfItem(ItemTemplate const* itemProto, SellerConf
             buyPrice = sellPrice * GetSellModifier(itemProto);
         else
         {
-            uint32 divisor = ((itemProto->GetClass() == ITEM_CLASS_WEAPON || itemProto->GetClass() == ITEM_CLASS_ARMOR) ? 284 : 80);
-            uint32 tempLevel = (itemProto->GetBaseItemLevel() == 0 ? 1 : itemProto->GetBaseItemLevel());
-            uint32 tempQuality = (itemProto->GetQuality() == 0 ? 1 : itemProto->GetQuality());
+            float divisor = ((itemProto->GetClass() == ITEM_CLASS_WEAPON || itemProto->GetClass() == ITEM_CLASS_ARMOR) ? 284.0f : 80.0f);
+            float tempLevel = (itemProto->GetBaseItemLevel() == 0 ? 1.0f : itemProto->GetBaseItemLevel());
+            float tempQuality = (itemProto->GetQuality() == 0 ? 1.0f : itemProto->GetQuality());
 
-            buyPrice = tempLevel * tempQuality * GetBuyModifier(itemProto)* tempLevel / divisor;
+            buyPrice = tempLevel * tempQuality * static_cast<float>(GetBuyModifier(itemProto))* tempLevel / divisor;
         }
     }
 
@@ -709,14 +725,24 @@ void AuctionBotSeller::SetPricesOfItem(ItemTemplate const* itemProto, SellerConf
     if (sAuctionBotConfig->GetConfig(CONFIG_AHBOT_BUYPRICE_SELLER))
         buyPrice = sellPrice;
 
-    uint32 basePrice = (buyPrice * stackCount * priceRatio) / (itemProto->GetClass() == 6 ? 200 : itemProto->GetBuyCount()) / 100;
-    uint32 range = basePrice * 0.04;
+    float basePriceFloat = (buyPrice * stackCount * priceRatio) / (itemProto->GetClass() == 6 ? 200.0f : static_cast<float>(itemProto->GetBuyCount())) / 100.0f;
+    float range = basePriceFloat * 0.04f;
 
-    buyp = urand(basePrice - range, basePrice + range) + 1;
-
-    basePrice = buyp * .5;
+    buyp = static_cast<uint32>(frand(basePriceFloat - range, basePriceFloat + range) + 0.5f);
+    if (buyp == 0)
+        buyp = 1;
+    uint32 basePrice = buyp * .5;
     range = buyp * .4;
-    bidp = urand(basePrice - range, basePrice + range) + 1;
+    bidp = urand(static_cast<uint32>(basePrice - range + 0.5f), static_cast<uint32>(basePrice + range + 0.5f)) + 1;
+}
+
+// Determines the stack size to use for the item
+uint32 AuctionBotSeller::GetStackSizeForItem(ItemTemplate const* itemProto, SellerConfiguration& config) const
+{
+    if (config.GetRandomStackRatioPerClass(ItemClass(itemProto->GetClass())) > urand(0, 99))
+        return urand(1, itemProto->GetMaxStackSize());
+    else
+        return 1;
 }
 
 // Determine the multiplier for the sell price of any weapon without a buy price.
@@ -950,7 +976,7 @@ void AuctionBotSeller::AddNewAuctions(SellerConfiguration& config)
             continue;
         }
 
-        uint32 stackCount = urand(1, prototype->GetMaxStackSize());
+        uint32 stackCount = GetStackSizeForItem(prototype, config);
 
         Item* item = Item::CreateItem(itemId, stackCount);
         if (!item)
@@ -999,6 +1025,7 @@ void AuctionBotSeller::AddNewAuctions(SellerConfiguration& config)
         auctionEntry->bidder = UI64LIT(0);
         auctionEntry->bid = 0;
         auctionEntry->deposit = sAuctionMgr->GetAuctionDeposit(ahEntry, etime, item, stackCount);
+        auctionEntry->houseId = houseid;
         auctionEntry->auctionHouseEntry = ahEntry;
         auctionEntry->expire_time = time(NULL) + urand(config.GetMinTime(), config.GetMaxTime()) * HOUR;
 

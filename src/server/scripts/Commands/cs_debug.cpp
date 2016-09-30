@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -24,6 +24,7 @@ EndScriptData */
 
 #include "ScriptMgr.h"
 #include "ObjectMgr.h"
+#include "BattlefieldMgr.h"
 #include "BattlegroundMgr.h"
 #include "Chat.h"
 #include "Cell.h"
@@ -36,9 +37,9 @@ EndScriptData */
 #include "MapManager.h"
 #include "MovementPackets.h"
 #include "SpellPackets.h"
-#include "ScenePackets.h"
 
 #include <fstream>
+#include <limits>
 
 class debug_commandscript : public CommandScript
 {
@@ -66,7 +67,6 @@ public:
             { "sellerror",     rbac::RBAC_PERM_COMMAND_DEBUG_SEND_SELLERROR,     false, &HandleDebugSendSellErrorCommand,       "" },
             { "setphaseshift", rbac::RBAC_PERM_COMMAND_DEBUG_SEND_SETPHASESHIFT, false, &HandleDebugSendSetPhaseShiftCommand,   "" },
             { "spellfail",     rbac::RBAC_PERM_COMMAND_DEBUG_SEND_SPELLFAIL,     false, &HandleDebugSendSpellFailCommand,       "" },
-            { "playscene",     rbac::RBAC_PERM_COMMAND_DEBUG_SEND_PLAYSCENE,     false, &HandleDebugSendPlaySceneCommand,       "" },
         };
         static std::vector<ChatCommand> debugCommandTable =
         {
@@ -98,6 +98,9 @@ public:
             { "transport",     rbac::RBAC_PERM_COMMAND_DEBUG_TRANSPORT,     false, &HandleDebugTransportCommand,        "" },
             { "loadcells",     rbac::RBAC_PERM_COMMAND_DEBUG_LOADCELLS,     false, &HandleDebugLoadCellsCommand,        "",},
             { "phase",         rbac::RBAC_PERM_COMMAND_DEBUG_PHASE,         false, &HandleDebugPhaseCommand,            "" },
+            { "boundary",      rbac::RBAC_PERM_COMMAND_DEBUG_BOUNDARY,      false, &HandleDebugBoundaryCommand,         "" },
+            { "raidreset",     rbac::RBAC_PERM_COMMAND_INSTANCE_UNBIND,     false, &HandleDebugRaidResetCommand,        "" },
+            { "neargraveyard", rbac::RBAC_PERM_COMMAND_NEARGRAVEYARD,       false, &HandleDebugNearGraveyard,           "" },
         };
         static std::vector<ChatCommand> commandTable =
         {
@@ -169,7 +172,7 @@ public:
 
         uint32 soundId = atoi((char*)args);
 
-        if (!sSoundEntriesStore.LookupEntry(soundId))
+        if (!sSoundKitStore.LookupEntry(soundId))
         {
             handler->PSendSysMessage(LANG_SOUND_NOT_EXIST, soundId);
             handler->SetSentErrorMessage(true);
@@ -212,8 +215,8 @@ public:
         char* fail2 = strtok(NULL, " ");
         uint8 failArg2 = fail2 ? (uint8)atoi(fail2) : 0;
 
-        WorldPackets::Spells::CastFailed castFailed(SMSG_CAST_FAILED);
-        castFailed.CastID = 0;
+        WorldPackets::Spells::CastFailed castFailed;
+        castFailed.CastID = ObjectGuid::Empty;
         castFailed.SpellID = 133;
         castFailed.Reason = failNum;
         castFailed.FailedArg1 = failArg1;
@@ -830,7 +833,7 @@ public:
             if (Unit* unit = ref->GetSource()->GetOwner())
             {
                 ++count;
-                handler->PSendSysMessage("   %u.   %s   (%s)  - threat %f", count, unit->GetName().c_str(), unit->GetGUID().ToString().c_str(), ref->getThreat());
+                handler->PSendSysMessage("   %u.   %s   (%s, SpawnId: %u)  - threat %f", count, unit->GetName().c_str(), unit->GetGUID().ToString().c_str(), unit->GetTypeId() == TYPEID_UNIT ? unit->ToCreature()->GetSpawnId() : 0, ref->getThreat());
             }
             ref = ref->next();
         }
@@ -1068,7 +1071,8 @@ public:
             return false;
 
         uint32 animId = atoi((char*)args);
-        handler->GetSession()->GetPlayer()->HandleEmoteCommand(animId);
+        if (Unit* unit = handler->getSelectedUnit())
+            unit->HandleEmoteCommand(animId);
         return true;
     }
 
@@ -1411,11 +1415,35 @@ public:
         if (!map)
             map = player->GetMap();
 
-        for (uint32 cellX = 0; cellX < TOTAL_NUMBER_OF_CELLS_PER_MAP; cellX++)
-            for (uint32 cellY = 0; cellY < TOTAL_NUMBER_OF_CELLS_PER_MAP; cellY++)
-                map->LoadGrid((cellX + 0.5f - CENTER_GRID_CELL_ID) * SIZE_OF_GRID_CELL, (cellY + 0.5f - CENTER_GRID_CELL_ID) * SIZE_OF_GRID_CELL);
-
+        map->LoadAllCells();
         handler->PSendSysMessage("Cells loaded (mapId: %u)", map->GetId());
+        return true;
+    }
+
+    static bool HandleDebugBoundaryCommand(ChatHandler* handler, char const* args)
+    {
+        Player* player = handler->GetSession()->GetPlayer();
+        if (!player)
+            return false;
+        Creature* target = handler->getSelectedCreature();
+        if (!target || !target->IsAIEnabled || !target->AI())
+        {
+            return false;
+        }
+
+        char* fill_str = args ? strtok((char*)args, " ") : nullptr;
+        char* duration_str = args ? strtok(nullptr, " ") : nullptr;
+
+        int duration = duration_str ? atoi(duration_str) : -1;
+        if (duration <= 0 || duration >= 30 * MINUTE) // arbitary upper limit
+            duration = 3 * MINUTE;
+
+        bool doFill = fill_str ? (stricmp(fill_str, "FILL") == 0) : false;
+
+        int32 errMsg = target->AI()->VisualizeBoundary(duration, player, doFill);
+        if (errMsg > 0)
+            handler->PSendSysMessage(errMsg);
+
         return true;
     }
 
@@ -1452,45 +1480,75 @@ public:
         return true;
     }
 
-    static bool HandleDebugSendPlaySceneCommand(ChatHandler* handler, char const* args)
+    static bool HandleDebugRaidResetCommand(ChatHandler* /*handler*/, char const* args)
     {
-        if (!*args)
+        char* map_str = args ? strtok((char*)args, " ") : nullptr;
+        char* difficulty_str = args ? strtok(nullptr, " ") : nullptr;
+
+        int32 map = map_str ? atoi(map_str) : -1;
+        if (map <= 0)
+            return false;
+        MapEntry const* mEntry = sMapStore.LookupEntry(map);
+        if (!mEntry || !mEntry->IsRaid())
+            return false;
+        int32 difficulty = difficulty_str ? atoi(difficulty_str) : -1;
+        if (difficulty >= MAX_DIFFICULTY || difficulty < -1)
             return false;
 
-        int32 sceneID = 0;
-        int32 playbackFlags = 0;
-        int32 sceneInstanceID = 0;
-        int32 sceneScriptPackageID = 0;
+        if (difficulty == -1)
+            for (uint8 diff = 0; diff < MAX_DIFFICULTY; ++diff)
+            {
+                if (sDB2Manager.GetMapDifficultyData(map, Difficulty(diff)))
+                    sInstanceSaveMgr->ForceGlobalReset(map, Difficulty(diff));
+            }
+        else
+            sInstanceSaveMgr->ForceGlobalReset(map, Difficulty(difficulty));
+        return true;
+    }
 
-        char* a = strtok((char*)args, " ");
-        char* b = strtok(NULL, " ");
-        char* c = strtok(NULL, " ");
-        char* d = strtok(NULL, " ");
+    static bool HandleDebugNearGraveyard(ChatHandler* handler, char const* args)
+    {
+        Player* player = handler->GetSession()->GetPlayer();
+        WorldSafeLocsEntry const* nearestLoc = nullptr;
 
-        if (!a || !b || !c || !d)
-            return false;
+        if (stricmp(args, "linked"))
+        {
+            if (Battleground* bg = player->GetBattleground())
+                nearestLoc = bg->GetClosestGraveYard(player);
+            else
+            {
+                if (Battlefield* bf = sBattlefieldMgr->GetBattlefieldToZoneId(player->GetZoneId()))
+                    nearestLoc = bf->GetClosestGraveYard(player);
+                else
+                    nearestLoc = sObjectMgr->GetClosestGraveYard(player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetMapId(), player->GetTeam());
+            }
+        }
+        else
+        {
+            float x = player->GetPositionX();
+            float y = player->GetPositionY();
+            float z = player->GetPositionZ();
+            float distNearest = std::numeric_limits<float>::max();
 
-        if (a)
-            sceneID = atoi(a);
-        if (b)
-            playbackFlags = atoi(b);
-        if (c)
-            sceneInstanceID = atoi(c);
-        if (d)
-            sceneScriptPackageID = atoi(d);
+            for (uint32 i = 0; i < sWorldSafeLocsStore.GetNumRows(); ++i)
+            {
+                WorldSafeLocsEntry const* loc = sWorldSafeLocsStore.LookupEntry(i);
+                if (loc && loc->MapID == player->GetMapId())
+                {
+                    float dist = (loc->Loc.X - x) * (loc->Loc.X - x) + (loc->Loc.Y - y) * (loc->Loc.Y - y) + (loc->Loc.Z - z) * (loc->Loc.Z - z);
+                    if (dist < distNearest)
+                    {
+                        distNearest = dist;
+                        nearestLoc = loc;
+                    }
+                }
+            }
+        }
 
-        Player* me = handler->GetSession()->GetPlayer();
-
-        WorldPackets::Scenes::PlayScene packet;
-        packet.SceneID = sceneID;
-        packet.PlaybackFlags = playbackFlags;
-        packet.SceneInstanceID = sceneInstanceID;
-        packet.SceneScriptPackageID = sceneScriptPackageID;
-        packet.TransportGUID = me->GetTransGUID();
-        packet.Location = me->GetPosition();
-        handler->GetSession()->SendPacket(packet.Write(), true);
-
-        TC_LOG_DEBUG("network", "Sent SMSG_PLAY_SCENE to %s, SceneID: %d, PlaybackFlags: %d, SceneInstanceID: %d, SceneScriptPackageID: %d", me->GetName().c_str(), sceneID, playbackFlags, sceneInstanceID, sceneScriptPackageID);
+        if (nearestLoc)
+            handler->PSendSysMessage(LANG_COMMAND_NEARGRAVEYARD, nearestLoc->ID, nearestLoc->Loc.X, nearestLoc->Loc.Y, nearestLoc->Loc.Z);
+        else
+            handler->PSendSysMessage(LANG_COMMAND_NEARGRAVEYARD_NOTFOUND);
 
         return true;
     }

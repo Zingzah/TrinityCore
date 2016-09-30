@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,7 +17,6 @@
 
 #include "Common.h"
 #include "SharedDefines.h"
-#include "DBCStores.h"
 #include "DisableMgr.h"
 #include "ObjectMgr.h"
 #include "SocialMgr.h"
@@ -37,11 +36,23 @@
 namespace lfg
 {
 
-LFGMgr::LFGMgr(): m_QueueTimer(0), m_lfgProposalId(1),
+LFGDungeonData::LFGDungeonData() : id(0), name(""), map(0), type(0), expansion(0), group(0), minlevel(0),
+maxlevel(0), difficulty(DIFFICULTY_NONE), seasonal(false), x(0.0f), y(0.0f), z(0.0f), o(0.0f),
+requiredItemLevel(0)
+{
+}
+
+LFGDungeonData::LFGDungeonData(LfgDungeonsEntry const* dbc) : id(dbc->ID), name(dbc->Name->Str[sWorld->GetDefaultDbcLocale()]), map(dbc->MapID),
+type(uint8(dbc->Type)), expansion(uint8(dbc->Expansion)), group(uint8(dbc->GroupID)),
+minlevel(uint8(dbc->MinLevel)), maxlevel(uint8(dbc->MaxLevel)), difficulty(Difficulty(dbc->DifficultyID)),
+seasonal((dbc->Flags & LFG_FLAG_SEASONAL) != 0), x(0.0f), y(0.0f), z(0.0f), o(0.0f),
+requiredItemLevel(0)
+{
+}
+
+LFGMgr::LFGMgr() : m_QueueTimer(0), m_lfgProposalId(1),
     m_options(sWorld->getIntConfig(CONFIG_LFG_OPTIONSMASK))
 {
-    new LFGPlayerScript();
-    new LFGGroupScript();
 }
 
 LFGMgr::~LFGMgr()
@@ -176,9 +187,9 @@ void LFGMgr::LoadLFGDungeons(bool reload /* = false */)
     LfgDungeonStore.clear();
 
     // Initialize Dungeon map with data from dbcs
-    for (uint32 i = 0; i < sLFGDungeonStore.GetNumRows(); ++i)
+    for (uint32 i = 0; i < sLfgDungeonsStore.GetNumRows(); ++i)
     {
-        LFGDungeonEntry const* dungeon = sLFGDungeonStore.LookupEntry(i);
+        LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(i);
         if (!dungeon)
             continue;
 
@@ -256,6 +267,12 @@ void LFGMgr::LoadLFGDungeons(bool reload /* = false */)
 
     if (reload)
         CachedDungeonMapStore.clear();
+}
+
+LFGMgr* LFGMgr::instance()
+{
+    static LFGMgr instance;
+    return &instance;
 }
 
 void LFGMgr::Update(uint32 diff)
@@ -1144,7 +1161,7 @@ void LFGMgr::RemoveProposal(LfgProposalContainer::iterator itProposal, LfgUpdate
     for (GuidList::const_iterator it = proposal.queues.begin(); it != proposal.queues.end(); ++it)
     {
         ObjectGuid guid = *it;
-        queue.AddToQueue(guid);
+        queue.AddToQueue(guid, true);
     }
 
     ProposalsStore.erase(itProposal);
@@ -1406,7 +1423,7 @@ void LFGMgr::FinishDungeon(ObjectGuid gguid, const uint32 dungeonId)
 
         // Update achievements
         if (dungeon->difficulty == DIFFICULTY_HEROIC)
-            player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_USE_LFD_TO_GROUP_WITH_PLAYERS, 1);
+            player->UpdateCriteria(CRITERIA_TYPE_USE_LFD_TO_GROUP_WITH_PLAYERS, 1);
 
         LfgReward const* reward = GetRandomDungeonReward(rDungeonId, player->getLevel());
         if (!reward)
@@ -1593,7 +1610,7 @@ LfgLockMap const LFGMgr::GetLockedDungeons(ObjectGuid guid)
     for (LfgDungeonSet::const_iterator it = dungeons.begin(); it != dungeons.end(); ++it)
     {
         LFGDungeonData const* dungeon = GetLFGDungeon(*it);
-        if (!dungeon) // should never happen - We provide a list from sLFGDungeonStore
+        if (!dungeon) // should never happen - We provide a list from sLfgDungeonsStore
             continue;
 
         uint32 lockStatus = 0;

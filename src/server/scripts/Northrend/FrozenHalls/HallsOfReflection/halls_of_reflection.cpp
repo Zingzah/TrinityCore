@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -815,7 +815,7 @@ class npc_jaina_or_sylvanas_escape_hor : public CreatureScript
                 _events.Reset();
                 _icewall = 0;
                 _events.ScheduleEvent(EVENT_ESCAPE, 1000);
-                _instance->DoStopTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_NOT_RETREATING_EVENT);
+                _instance->DoStopCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_NOT_RETREATING_EVENT);
             }
 
             void JustDied(Unit* /*killer*/) override
@@ -1053,7 +1053,7 @@ class npc_jaina_or_sylvanas_escape_hor : public CreatureScript
                                 }
                             }
                             _invincibility = false;
-                            _instance->DoStartTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_NOT_RETREATING_EVENT);
+                            _instance->DoStartCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_NOT_RETREATING_EVENT);
                             _events.ScheduleEvent(EVENT_ESCAPE_7, 1000);
                             break;
                         case EVENT_ESCAPE_7:
@@ -1113,7 +1113,7 @@ class npc_jaina_or_sylvanas_escape_hor : public CreatureScript
                             me->RemoveAurasDueToSpell(SPELL_HARVEST_SOUL);
                             if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
                                 Talk(SAY_JAINA_ESCAPE_9);
-                            if (Transport* gunship = ObjectAccessor::GetTransport(*me, _instance->GetGuidData(DATA_GUNSHIP)))
+                            if (Transport* gunship = ObjectAccessor::GetTransportOnMap(*me, _instance->GetGuidData(DATA_GUNSHIP)))
                                 gunship->EnableMovement(true);
                             _instance->SetBossState(DATA_THE_LICH_KING_ESCAPE, DONE);
                             break;
@@ -1185,7 +1185,7 @@ class npc_the_lich_king_escape_hor : public CreatureScript
                             if (Creature* target = ObjectAccessor::GetCreature(*me, _instance->GetGuidData(DATA_ESCAPE_LEADER)))
                                 DoCast(target, SPELL_HARVEST_SOUL);
 
-                            if (Transport* gunship = ObjectAccessor::GetTransport(*me, _instance->GetGuidData(DATA_GUNSHIP)))
+                            if (Transport* gunship = ObjectAccessor::GetTransportOnMap(*me, _instance->GetGuidData(DATA_GUNSHIP)))
                                 gunship->EnableMovement(true);
                             break;
                         default:
@@ -1269,7 +1269,7 @@ class npc_the_lich_king_escape_hor : public CreatureScript
                 }
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason /*why*/) override
             {
                 if (_despawn)
                     return;
@@ -1335,7 +1335,7 @@ class npc_the_lich_king_escape_hor : public CreatureScript
                 }
                 else if (me->getThreatManager().getThreatList().size() < 2 && me->HasAura(SPELL_REMORSELESS_WINTER))
                 {
-                    EnterEvadeMode();
+                    EnterEvadeMode(EVADE_REASON_OTHER);
                     return false;
                 }
 
@@ -1438,7 +1438,7 @@ struct npc_gauntlet_trash : public ScriptedAI
         _events.Reset();
     }
 
-    void EnterEvadeMode() override
+    void EnterEvadeMode(EvadeReason /*why*/) override
     {
         if (_instance->GetData(DATA_WAVE_COUNT) != NOT_STARTED)
             _instance->SetData(DATA_WAVE_COUNT, NOT_STARTED);
@@ -1546,10 +1546,10 @@ class npc_phantom_mage : public CreatureScript
         {
             npc_phantom_mageAI(Creature* creature) : npc_gauntlet_trash(creature) { }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason why) override
             {
                 if (!me->HasAura(AURA_HALLUCINATION))
-                    npc_gauntlet_trash::EnterEvadeMode();
+                    npc_gauntlet_trash::EnterEvadeMode(why);
             }
 
             void EnterCombat(Unit* /*who*/) override
@@ -1626,10 +1626,10 @@ class npc_phantom_hallucination : public CreatureScript
                 DoZoneInCombat(me, 150.0f);
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason why) override
             {
                 if (me->GetOwner() && !me->GetOwner()->HasAura(AURA_HALLUCINATION))
-                    npc_phantom_mage::npc_phantom_mageAI::EnterEvadeMode();
+                    npc_phantom_mage::npc_phantom_mageAI::EnterEvadeMode(why);
             }
 
             void JustDied(Unit* /*killer*/) override
@@ -2580,7 +2580,7 @@ class npc_quel_delar_sword : public CreatureScript
             void Reset() override
             {
                 _events.Reset();
-                me->SetSpeed(MOVE_FLIGHT, 4.5f, true);
+                me->SetSpeedRate(MOVE_FLIGHT, 4.5f);
                 DoCast(SPELL_WHIRLWIND_VISUAL);
                 if (_intro)
                     _events.ScheduleEvent(EVENT_QUEL_DELAR_INIT, 0);

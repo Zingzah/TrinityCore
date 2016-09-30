@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -21,16 +21,16 @@
 #include "Group.h"
 #include "GroupMgr.h"
 #include "Log.h"
+#include "LootPackets.h"
+#include "MiscPackets.h"
 #include "ObjectMgr.h"
+#include "PartyPackets.h"
 #include "Player.h"
 #include "SocialMgr.h"
 #include "Util.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
-#include "MiscPackets.h"
-#include "LootPackets.h"
-#include "PartyPackets.h"
 
 class Aura;
 
@@ -348,8 +348,16 @@ void WorldSession::HandleSetLootMethodOpcode(WorldPackets::Party::SetLootMethod&
     if (!group->IsLeader(GetPlayer()->GetGUID()))
         return;
 
-    if (packet.LootMethod > PERSONAL_LOOT)
-        return;
+    switch (packet.LootMethod)
+    {
+        case FREE_FOR_ALL:
+        case MASTER_LOOT:
+        case GROUP_LOOT:
+        case PERSONAL_LOOT:
+            break;
+        default:
+            return;
+    }
 
     if (packet.LootThreshold < ITEM_QUALITY_UNCOMMON || packet.LootThreshold > ITEM_QUALITY_ARTIFACT)
         return;
@@ -376,10 +384,10 @@ void WorldSession::HandleLootRoll(WorldPackets::Loot::LootRoll& packet)
     switch (packet.RollType)
     {
         case ROLL_NEED:
-            GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ROLL_NEED, 1);
+            GetPlayer()->UpdateCriteria(CRITERIA_TYPE_ROLL_NEED, 1);
             break;
         case ROLL_GREED:
-            GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ROLL_GREED, 1);
+            GetPlayer()->UpdateCriteria(CRITERIA_TYPE_ROLL_GREED, 1);
             break;
     }
 }
@@ -398,28 +406,12 @@ void WorldSession::HandleMinimapPingOpcode(WorldPackets::Party::MinimapPingClien
 
 void WorldSession::HandleRandomRollOpcode(WorldPackets::Misc::RandomRollClient& packet)
 {
-    uint32 minimum, maximum, roll;
-    minimum = packet.Min;
-    maximum = packet.Max;
-
     /** error handling **/
-    if (minimum > maximum || maximum > 10000)                // < 32768 for urand call
+    if (packet.Min > packet.Max || packet.Max > 10000)                // < 32768 for urand call
         return;
     /********************/
 
-    // everything's fine, do it
-    roll = urand(minimum, maximum);
-
-    WorldPackets::Misc::RandomRoll randomRoll;
-    randomRoll.Min = minimum;
-    randomRoll.Max = maximum;
-    randomRoll.Result = roll;
-    randomRoll.Roller = GetPlayer()->GetGUID();
-    randomRoll.RollerWowAccount = GetAccountGUID();
-    if (GetPlayer()->GetGroup())
-        GetPlayer()->GetGroup()->BroadcastPacket(randomRoll.Write(), false);
-    else
-        SendPacket(randomRoll.Write());
+    GetPlayer()->DoRandomRoll(packet.Min, packet.Max);
 }
 
 void WorldSession::HandleUpdateRaidTargetOpcode(WorldPackets::Party::UpdateRaidTarget& packet)
@@ -524,10 +516,8 @@ void WorldSession::HandleSetAssistantLeaderOpcode(WorldPackets::Party::SetAssist
     group->SetGroupMemberFlag(packet.Target, packet.Apply, MEMBER_FLAG_ASSISTANT);
 }
 
-void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
+void WorldSession::HandleSetPartyAssignment(WorldPackets::Party::SetPartyAssignment& packet)
 {
-    TC_LOG_DEBUG("network", "WORLD: Received MSG_PARTY_ASSIGNMENT");
-
     Group* group = GetPlayer()->GetGroup();
     if (!group)
         return;
@@ -536,21 +526,15 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
     if (!group->IsLeader(senderGuid) && !group->IsAssistant(senderGuid))
         return;
 
-    uint8 assignment;
-    bool apply;
-    ObjectGuid guid;
-    recvData >> assignment >> apply;
-    recvData >> guid;
-
-    switch (assignment)
+    switch (packet.Assignment)
     {
         case GROUP_ASSIGN_MAINASSIST:
             group->RemoveUniqueGroupMemberFlag(MEMBER_FLAG_MAINASSIST);
-            group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_MAINASSIST);
+            group->SetGroupMemberFlag(packet.Target, packet.Set, MEMBER_FLAG_MAINASSIST);
             break;
         case GROUP_ASSIGN_MAINTANK:
             group->RemoveUniqueGroupMemberFlag(MEMBER_FLAG_MAINTANK);           // Remove main assist flag from current if any.
-            group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_MAINTANK);
+            group->SetGroupMemberFlag(packet.Target, packet.Set, MEMBER_FLAG_MAINTANK);
         default:
             break;
     }
@@ -585,12 +569,12 @@ void WorldSession::HandleReadyCheckResponseOpcode(WorldPackets::Party::ReadyChec
 
 void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPackets::Party::RequestPartyMemberStats& packet)
 {
-    WorldPackets::Party::PartyMemberStats partyMemberStats;
+    WorldPackets::Party::PartyMemberState partyMemberStats;
 
     Player* player = ObjectAccessor::FindConnectedPlayer(packet.TargetGUID);
     if (!player)
     {
-        partyMemberStats.MemberStats.GUID = packet.TargetGUID;
+        partyMemberStats.MemberGuid = packet.TargetGUID;
         partyMemberStats.MemberStats.Status = MEMBER_STATUS_OFFLINE;
     }
     else

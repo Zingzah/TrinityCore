@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -21,10 +21,10 @@
 
 DoorData const doorData[] =
 {
-    { GO_ARGALOTH_DOOR,  DATA_ARGALOTH, DOOR_TYPE_ROOM, BOUNDARY_NONE },
-    { GO_OCCUTHAR_DOOR,  DATA_OCCUTHAR, DOOR_TYPE_ROOM, BOUNDARY_NONE },
-    { GO_ALIZABAL_DOOR,  DATA_ALIZABAL, DOOR_TYPE_ROOM, BOUNDARY_NONE },
-    { 0,                 0,             DOOR_TYPE_ROOM, BOUNDARY_NONE }  // END
+    { GO_ARGALOTH_DOOR,  DATA_ARGALOTH, DOOR_TYPE_ROOM },
+    { GO_OCCUTHAR_DOOR,  DATA_OCCUTHAR, DOOR_TYPE_ROOM },
+    { GO_ALIZABAL_DOOR,  DATA_ALIZABAL, DOOR_TYPE_ROOM },
+    { 0,                 0,             DOOR_TYPE_ROOM }  // END
 };
 
 class instance_baradin_hold: public InstanceMapScript

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -338,4 +338,10 @@ void GuildFinderMgr::SendApplicantListUpdate(Guild* guild)
 void GuildFinderMgr::SendMembershipRequestListUpdate(Player* player)
 {
     player->SendDirectMessage(WorldPackets::GuildFinder::LFGuildApplicationsListChanged().Write());
+}
+
+GuildFinderMgr* GuildFinderMgr::instance()
+{
+    static GuildFinderMgr instance;
+    return &instance;
 }

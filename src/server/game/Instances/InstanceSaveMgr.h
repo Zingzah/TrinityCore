@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -41,7 +41,7 @@ class Group;
     - player-instance binds for permanent heroic/raid saves
     - group-instance binds (both solo and permanent) cache the player binds for the group leader
 */
-class InstanceSave
+class TC_GAME_API InstanceSave
 {
     friend class InstanceSaveManager;
     public:
@@ -49,7 +49,7 @@ class InstanceSave
            - any new instance is being generated
            - the first time a player bound to InstanceId logs in
            - when a group bound to the instance is loaded */
-        InstanceSave(uint16 MapId, uint32 InstanceId, Difficulty difficulty, time_t resetTime, bool canReset);
+        InstanceSave(uint16 MapId, uint32 InstanceId, Difficulty difficulty, uint32 entranceId, time_t resetTime, bool canReset);
 
         /* Unloaded when m_playerList and m_groupList become empty
            or when the instance is reset */
@@ -74,6 +74,9 @@ class InstanceSave
         time_t GetResetTime() const { return m_resetTime; }
         void SetResetTime(time_t resetTime) { m_resetTime = resetTime; }
         time_t GetResetTimeForDB();
+
+        uint32 GetEntranceLocation() const { return m_entranceId; }
+        void SetEntranceLocation(uint32 entranceId) { m_entranceId = entranceId; }
 
         InstanceTemplate const* GetTemplate();
         MapEntry const* GetMapEntry();
@@ -139,6 +142,7 @@ class InstanceSave
         uint32 m_instanceid;
         uint32 m_mapid;
         Difficulty m_difficulty;
+        uint32 m_entranceId;
         bool m_canReset;
         bool m_toDelete;
 
@@ -147,7 +151,7 @@ class InstanceSave
 
 typedef std::unordered_map<uint64 /*PAIR64(map, difficulty)*/, time_t /*resetTime*/> ResetTimeByMapDifficultyMap;
 
-class InstanceSaveManager
+class TC_GAME_API InstanceSaveManager
 {
     friend class InstanceSave;
 
@@ -158,11 +162,7 @@ class InstanceSaveManager
     public:
         typedef std::unordered_map<uint32 /*InstanceId*/, InstanceSave*> InstanceSaveHashMap;
 
-        static InstanceSaveManager* instance()
-        {
-            static InstanceSaveManager instance;
-            return &instance;
-        }
+        static InstanceSaveManager* instance();
 
         void Unload();
 
@@ -190,6 +190,7 @@ class InstanceSaveManager
             ResetTimeByMapDifficultyMap::const_iterator itr  = m_resetTimeByMapDifficulty.find(MAKE_PAIR64(mapid, d));
             return itr != m_resetTimeByMapDifficulty.end() ? itr->second : 0;
         }
+        time_t GetSubsequentResetTime(uint32 mapid, Difficulty difficulty, time_t resetTime) const;
 
         // Use this on startup when initializing reset times
         void InitializeResetTimeFor(uint32 mapid, Difficulty d, time_t t)
@@ -210,10 +211,11 @@ class InstanceSaveManager
             return m_resetTimeByMapDifficulty;
         }
         void ScheduleReset(bool add, time_t time, InstResetEvent event);
+        void ForceGlobalReset(uint32 mapId, Difficulty difficulty);
 
         void Update();
 
-        InstanceSave* AddInstanceSave(uint32 mapId, uint32 instanceId, Difficulty difficulty, time_t resetTime,
+        InstanceSave* AddInstanceSave(uint32 mapId, uint32 instanceId, Difficulty difficulty, time_t resetTime, uint32 entranceId,
             bool canReset, bool load = false);
         void RemoveInstanceSave(uint32 InstanceId);
         void UnloadInstanceSave(uint32 InstanceId);

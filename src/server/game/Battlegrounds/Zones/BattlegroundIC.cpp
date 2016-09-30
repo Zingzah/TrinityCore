@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -263,11 +263,12 @@ void BattlegroundIC::RemovePlayer(Player* player, ObjectGuid /*guid*/, uint32 /*
     }
 }
 
-void BattlegroundIC::HandleAreaTrigger(Player* player, uint32 trigger, bool /*entered*/)
+void BattlegroundIC::HandleAreaTrigger(Player* player, uint32 trigger, bool entered)
 {
     // this is wrong way to implement these things. On official it done by gameobject spell cast.
-    if (GetStatus() != STATUS_IN_PROGRESS)
-        return;
+    if (GetStatus() == STATUS_WAIT_JOIN && !entered)
+        if (trigger == 9176 || trigger == 9178)
+            TeleportPlayerToExploitLocation(player);
 
     /// @hack: this spell should be cast by npc 22515 (World Trigger) and not by the player
     if (trigger == 5555 && player->GetTeamId() == TEAM_HORDE)
@@ -365,7 +366,7 @@ bool BattlegroundIC::SetupBattleground()
     // setting correct factions for Keep Cannons
     for (uint8 i = BG_IC_NPC_KEEP_CANNON_1; i <= BG_IC_NPC_KEEP_CANNON_12; ++i)
         GetBGCreature(i)->setFaction(BG_IC_Factions[0]);
-    for (uint8 i = BG_IC_NPC_KEEP_CANNON_13; i <= BG_IC_NPC_KEEP_CANNON_25; ++i)
+    for (uint8 i = BG_IC_NPC_KEEP_CANNON_13; i <= BG_IC_NPC_KEEP_CANNON_24; ++i)
         GetBGCreature(i)->setFaction(BG_IC_Factions[1]);
 
     // correcting spawn time for keeps bombs
@@ -882,6 +883,11 @@ WorldSafeLocsEntry const* BattlegroundIC::GetClosestGraveYard(Player* player)
         good_entry = sWorldSafeLocsStore.LookupEntry(BG_IC_GraveyardIds[teamIndex+MAX_NODE_TYPES]);
 
     return good_entry;
+}
+
+WorldSafeLocsEntry const * BattlegroundIC::GetExploitTeleportLocation(Team team)
+{
+    return sWorldSafeLocsStore.LookupEntry(team == ALLIANCE ? IC_EXPLOIT_TELEPORT_LOCATION_ALLIANCE : IC_EXPLOIT_TELEPORT_LOCATION_HORDE);
 }
 
 bool BattlegroundIC::IsAllNodesControlledByTeam(uint32 team) const

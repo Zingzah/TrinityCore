@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -159,7 +159,7 @@ void WorldSession::HandleBuyBankSlotOpcode(WorldPackets::Bank::BuyBankSlot& pack
      data << uint32(ERR_BANKSLOT_OK);
      SendPacket(&data);
 
-    _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_BUY_BANK_SLOT);
+    _player->UpdateCriteria(CRITERIA_TYPE_BUY_BANK_SLOT);
 }
 
 void WorldSession::SendShowBank(ObjectGuid guid)

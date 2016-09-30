@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -21,7 +21,6 @@
 #include "ArenaTeamMgr.h"
 #include "AuthenticationPackets.h"
 #include "Battleground.h"
-#include "BattlenetServerManager.h"
 #include "BattlePetPackets.h"
 #include "CalendarMgr.h"
 #include "CharacterPackets.h"
@@ -50,11 +49,11 @@
 #include "SharedDefines.h"
 #include "SocialMgr.h"
 #include "SystemPackets.h"
-#include "UpdateMask.h"
 #include "Util.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include "Metric.h"
 
 class LoginQueryHolder : public SQLQueryHolder
 {
@@ -132,6 +131,10 @@ bool LoginQueryHolder::Initialize()
     stmt->setUInt64(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_INVENTORY, stmt);
 
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_ITEM_INSTANCE_ARTIFACT);
+    stmt->setUInt64(0, lowGuid);
+    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_ARTIFACTS, stmt);
+
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHAR_VOID_STORAGE);
     stmt->setUInt64(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_VOID_STORAGE, stmt);
@@ -191,6 +194,10 @@ bool LoginQueryHolder::Initialize()
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_EQUIPMENTSETS);
     stmt->setUInt64(0, lowGuid);
     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_EQUIPMENT_SETS, stmt);
+
+    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_TRANSMOG_OUTFITS);
+    stmt->setUInt64(0, lowGuid);
+    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_TRANSMOG_OUTFITS, stmt);
 
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHAR_CUF_PROFILES);
     stmt->setUInt64(0, lowGuid);
@@ -265,9 +272,14 @@ bool LoginQueryHolder::Initialize()
 
 void WorldSession::HandleCharEnum(PreparedQueryResult result)
 {
+    uint8 demonHunterCount = 0; // We use this counter to allow multiple demon hunter creations when allowed in config
+    bool canAlwaysCreateDemonHunter = HasPermission(rbac::RBAC_PERM_SKIP_CHECK_CHARACTER_CREATION_DEMON_HUNTER);
+    if (sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_DEMON_HUNTER) == 0) // char level = 0 means this check is disabled, so always true
+        canAlwaysCreateDemonHunter = true;
     WorldPackets::Character::EnumCharactersResult charEnum;
     charEnum.Success = true;
     charEnum.IsDeletedCharacters = false;
+    charEnum.DisabledClassesMask = sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_DISABLED_CLASSMASK);
 
     _legitCharacters.clear();
 
@@ -280,7 +292,7 @@ void WorldSession::HandleCharEnum(PreparedQueryResult result)
 
             TC_LOG_INFO("network", "Loading char guid %s from account %u.", charInfo.Guid.ToString().c_str(), GetAccountId());
 
-            if (!Player::ValidateAppearance(charInfo.Race, charInfo.Class, charInfo.Sex, charInfo.HairStyle, charInfo.HairColor, charInfo.Face, charInfo.FacialHair, charInfo.Skin))
+            if (!Player::ValidateAppearance(charInfo.Race, charInfo.Class, charInfo.Sex, charInfo.HairStyle, charInfo.HairColor, charInfo.Face, charInfo.FacialHair, charInfo.Skin, charInfo.CustomDisplay))
             {
                 TC_LOG_ERROR("entities.player.loading", "Player %s has wrong Appearance values (Hair/Skin/Color), forcing recustomize", charInfo.Guid.ToString().c_str());
 
@@ -301,10 +313,23 @@ void WorldSession::HandleCharEnum(PreparedQueryResult result)
             if (!sWorld->HasCharacterInfo(charInfo.Guid)) // This can happen if characters are inserted into the database manually. Core hasn't loaded name data yet.
                 sWorld->AddCharacterInfo(charInfo.Guid, GetAccountId(), charInfo.Name, charInfo.Sex, charInfo.Race, charInfo.Class, charInfo.Level, false);
 
+            if (charInfo.Class == CLASS_DEMON_HUNTER)
+                demonHunterCount++;
+
+            if (demonHunterCount >= sWorld->getIntConfig(CONFIG_DEMON_HUNTERS_PER_REALM) && !canAlwaysCreateDemonHunter)
+                charEnum.HasDemonHunterOnRealm = true;
+            else
+                charEnum.HasDemonHunterOnRealm = false;
+
+            if (charInfo.Level >= sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_DEMON_HUNTER) || canAlwaysCreateDemonHunter)
+                charEnum.HasLevel70OnRealm = true;
+
             charEnum.Characters.emplace_back(charInfo);
         }
         while (result->NextRow());
     }
+
+    charEnum.IsDemonHunterCreationAllowed = (!charEnum.HasDemonHunterOnRealm && charEnum.HasLevel70OnRealm) || canAlwaysCreateDemonHunter;
 
     SendPacket(charEnum.Write());
 }
@@ -334,6 +359,7 @@ void WorldSession::HandleCharUndeleteEnum(PreparedQueryResult result)
     WorldPackets::Character::EnumCharactersResult charEnum;
     charEnum.Success = true;
     charEnum.IsDeletedCharacters = true;
+    charEnum.DisabledClassesMask = sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_DISABLED_CLASSMASK);
 
     if (result)
     {
@@ -573,11 +599,11 @@ void WorldSession::HandleCharCreateCallback(PreparedQueryResult result, WorldPac
 
             _charCreateCallback.FreeResult();
 
-            if (!allowTwoSideAccounts || skipCinematics == 1 || createInfo->Class == CLASS_DEATH_KNIGHT)
+            if (!allowTwoSideAccounts || skipCinematics == 1 || createInfo->Class == CLASS_DEATH_KNIGHT || createInfo->Class == CLASS_DEMON_HUNTER)
             {
                 PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHAR_CREATE_INFO);
                 stmt->setUInt32(0, GetAccountId());
-                stmt->setUInt32(1, (skipCinematics == 1 || createInfo->Class == CLASS_DEATH_KNIGHT) ? 10 : 1);
+                stmt->setUInt32(1, (skipCinematics == 1 || createInfo->Class == CLASS_DEATH_KNIGHT || createInfo->Class == CLASS_DEMON_HUNTER) ? 12 : 1);
                 _charCreateCallback.SetFutureResult(CharacterDatabase.AsyncQuery(stmt));
                 _charCreateCallback.NextStage();
                 return;
@@ -591,15 +617,19 @@ void WorldSession::HandleCharCreateCallback(PreparedQueryResult result, WorldPac
         {
             bool haveSameRace = false;
             uint32 heroicReqLevel = sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_HEROIC_CHARACTER);
+            uint32 demonHunterReqLevel = sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_DEMON_HUNTER);
             bool hasHeroicReqLevel = (heroicReqLevel == 0);
+            bool hasDemonHunterReqLevel = (demonHunterReqLevel == 0);
             bool allowTwoSideAccounts = !sWorld->IsPvPRealm() || HasPermission(rbac::RBAC_PERM_TWO_SIDE_CHARACTER_CREATION);
             uint32 skipCinematics = sWorld->getIntConfig(CONFIG_SKIP_CINEMATICS);
             bool checkHeroicReqs = createInfo->Class == CLASS_DEATH_KNIGHT && !HasPermission(rbac::RBAC_PERM_SKIP_CHECK_CHARACTER_CREATION_HEROIC_CHARACTER);
+            bool checkDemonHunterReqs = createInfo->Class == CLASS_DEMON_HUNTER && !HasPermission(rbac::RBAC_PERM_SKIP_CHECK_CHARACTER_CREATION_DEMON_HUNTER);
 
             if (result)
             {
                 uint32 team = Player::TeamForRace(createInfo->Race);
                 uint32 freeHeroicSlots = sWorld->getIntConfig(CONFIG_HEROIC_CHARACTERS_PER_REALM);
+                uint32 freeDemonHunterSlots = sWorld->getIntConfig(CONFIG_DEMON_HUNTERS_PER_REALM);
 
                 Field* field = result->Fetch();
                 uint8 accRace  = field[1].GetUInt8();
@@ -628,6 +658,30 @@ void WorldSession::HandleCharCreateCallback(PreparedQueryResult result, WorldPac
                     }
                 }
 
+                if (checkDemonHunterReqs)
+                {
+                    uint8 accClass = field[2].GetUInt8();
+                    if (accClass == CLASS_DEMON_HUNTER)
+                    {
+                        if (freeDemonHunterSlots > 0)
+                            --freeDemonHunterSlots;
+
+                        if (freeDemonHunterSlots == 0)
+                        {
+                            SendCharCreate(CHAR_CREATE_FAILED);
+                            _charCreateCallback.Reset();
+                            return;
+                        }
+                    }
+
+                    if (!hasDemonHunterReqLevel)
+                    {
+                        uint8 accLevel = field[0].GetUInt8();
+                        if (accLevel >= demonHunterReqLevel)
+                            hasDemonHunterReqLevel = true;
+                    }
+                }
+
                 // need to check team only for first character
                 /// @todo what to if account already has characters of both races?
                 if (!allowTwoSideAccounts)
@@ -646,7 +700,7 @@ void WorldSession::HandleCharCreateCallback(PreparedQueryResult result, WorldPac
 
                 // search same race for cinematic or same class if need
                 /// @todo check if cinematic already shown? (already logged in?; cinematic field)
-                while ((skipCinematics == 1 && !haveSameRace) || createInfo->Class == CLASS_DEATH_KNIGHT)
+                while ((skipCinematics == 1 && !haveSameRace) || createInfo->Class == CLASS_DEATH_KNIGHT || createInfo->Class == CLASS_DEMON_HUNTER)
                 {
                     if (!result->NextRow())
                         break;
@@ -680,10 +734,41 @@ void WorldSession::HandleCharCreateCallback(PreparedQueryResult result, WorldPac
                                 hasHeroicReqLevel = true;
                         }
                     }
+
+                    if (checkDemonHunterReqs)
+                    {
+                        uint8 accClass = field[2].GetUInt8();
+                        if (accClass == CLASS_DEMON_HUNTER)
+                        {
+                            if (freeDemonHunterSlots > 0)
+                                --freeDemonHunterSlots;
+
+                            if (freeDemonHunterSlots == 0)
+                            {
+                                SendCharCreate(CHAR_CREATE_FAILED);
+                                _charCreateCallback.Reset();
+                                return;
+                            }
+                        }
+
+                        if (!hasDemonHunterReqLevel)
+                        {
+                            uint8 accLevel = field[0].GetUInt8();
+                            if (accLevel >= demonHunterReqLevel)
+                                hasDemonHunterReqLevel = true;
+                        }
+                    }
                 }
             }
 
             if (checkHeroicReqs && !hasHeroicReqLevel)
+            {
+                SendCharCreate(CHAR_CREATE_LEVEL_REQUIREMENT);
+                _charCreateCallback.Reset();
+                return;
+            }
+
+            if (checkDemonHunterReqs && !hasDemonHunterReqLevel)
             {
                 SendCharCreate(CHAR_CREATE_LEVEL_REQUIREMENT);
                 _charCreateCallback.Reset();
@@ -837,8 +922,6 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPackets::Character::PlayerLogin&
         return;
     }
 
-    TC_LOG_DEBUG("network", "WORLD: Recvd Player Logon Message");
-
     m_playerLoading = playerLogin.Guid;
 
     TC_LOG_DEBUG("network", "Character %s logging in", playerLogin.Guid.ToString().c_str());
@@ -938,7 +1021,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         WorldPackets::System::MOTD motd;
         motd.Text = &sWorld->GetMotd();
         SendPacket(motd.Write());
-        TC_LOG_DEBUG("network", "WORLD: Sent motd (SMSG_MOTD)");
     }
 
     SendSetTimeZoneInformation();
@@ -952,15 +1034,12 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
             season.CurrentSeason = sWorld->getIntConfig(CONFIG_ARENA_SEASON_ID);
 
         SendPacket(season.Write());
-        TC_LOG_DEBUG("network", "WORLD: Sent PVPSeason");
     }
 
     // send server info
     {
         if (sWorld->getIntConfig(CONFIG_ENABLE_SINFO_LOGIN) == 1)
             chH.PSendSysMessage(GitRevision::GetFullVersion());
-
-        TC_LOG_DEBUG("network", "WORLD: Sent server info");
     }
 
     //QueryResult* result = CharacterDatabase.PQuery("SELECT guildid, rank FROM guild_member WHERE guid = '%u'", pCurrChar->GetGUIDLow());
@@ -1000,7 +1079,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
         if (ChrClassesEntry const* cEntry = sChrClassesStore.LookupEntry(pCurrChar->getClass()))
         {
-            if (cEntry->CinematicSequenceID)
+            if (pCurrChar->getClass() == CLASS_DEMON_HUNTER) /// @todo: find a more generic solution
+                pCurrChar->SendMovieStart(469);
+            else if (cEntry->CinematicSequenceID)
                 pCurrChar->SendCinematicStart(cEntry->CinematicSequenceID);
             else if (ChrRacesEntry const* rEntry = sChrRacesStore.LookupEntry(pCurrChar->getRace()))
                 pCurrChar->SendCinematicStart(rEntry->CinematicSequenceID);
@@ -1078,7 +1159,17 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // reset for all pets before pet loading
     if (pCurrChar->HasAtLoginFlag(AT_LOGIN_RESET_PET_TALENTS))
-        Pet::resetTalentsForAllPetsOf(pCurrChar);
+    {
+        // Delete all of the player's pet spells
+        PreparedStatement* stmtSpells = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ALL_PET_SPELLS_BY_OWNER);
+        stmtSpells->setUInt64(0, pCurrChar->GetGUID().GetCounter());
+        CharacterDatabase.Execute(stmtSpells);
+
+        // Then reset all of the player's pet specualizations
+        PreparedStatement* stmtSpec = CharacterDatabase.GetPreparedStatement(CHAR_UPD_PET_SPECS_BY_OWNER);
+        stmtSpec->setUInt64(0, pCurrChar->GetGUID().GetCounter());
+        CharacterDatabase.Execute(stmtSpec);
+    }
 
     // Load pet if any (if player not alive and in taxi flight or another then pet will remember as temporary unsummoned)
     pCurrChar->LoadPet();
@@ -1134,11 +1225,11 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     m_playerLoading.Clear();
 
     // Handle Login-Achievements (should be handled after loading)
-    _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ON_LOGIN, 1);
+    _player->UpdateCriteria(CRITERIA_TYPE_ON_LOGIN, 1);
 
     sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin);
 
-    sBattlenetServer.SendChangeToonOnlineState(GetBattlenetAccountId(), GetAccountId(), _player->GetGUID(), _player->GetName(), true);
+    TC_METRIC_EVENT("player_events", "Login", pCurrChar->GetName());
 
     delete holder;
 }
@@ -1151,8 +1242,8 @@ void WorldSession::SendFeatureSystemStatus()
     features.ComplaintStatus = 2;
     features.ScrollOfResurrectionRequestsRemaining = 1;
     features.ScrollOfResurrectionMaxRequestsPerDay = 1;
-    features.UnkInt27 = 60;
-    features.TwitterMsTillCanPost = 20;
+    features.TwitterPostThrottleLimit = 60;
+    features.TwitterPostThrottleCooldown = 20;
     features.CfgRealmID = 2;
     features.CfgRealmRecID = 0;
     features.TokenPollTimeSeconds = 300;
@@ -1242,22 +1333,6 @@ void WorldSession::HandleSetFactionInactiveOpcode(WorldPackets::Character::SetFa
 void WorldSession::HandleRequestForcedReactionsOpcode(WorldPackets::Reputation::RequestForcedReactions& /*requestForcedReactions*/)
 {
     _player->GetReputationMgr().SendForceReactions();
-}
-
-void WorldSession::HandleShowingHelmOpcode(WorldPackets::Character::ShowingHelm& packet)
-{
-    if (packet.ShowHelm)
-        _player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM);
-    else
-        _player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_HELM);
-}
-
-void WorldSession::HandleShowingCloakOpcode(WorldPackets::Character::ShowingCloak& packet)
-{
-    if (packet.ShowCloak)
-        _player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
-    else
-        _player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
 }
 
 void WorldSession::HandleCharRenameOpcode(WorldPackets::Character::CharacterRenameRequest& request)
@@ -1350,80 +1425,64 @@ void WorldSession::HandleCharRenameCallBack(PreparedQueryResult result, WorldPac
     sWorld->UpdateCharacterInfo(renameInfo->Guid, renameInfo->NewName);
 }
 
-void WorldSession::HandleSetPlayerDeclinedNames(WorldPacket& recvData)
+void WorldSession::HandleSetPlayerDeclinedNames(WorldPackets::Character::SetPlayerDeclinedNames& packet)
 {
-    ObjectGuid guid;
-
-    recvData >> guid;
-
     // not accept declined names for unsupported languages
     std::string name;
-    if (!ObjectMgr::GetPlayerNameByGUID(guid, name))
+    if (!ObjectMgr::GetPlayerNameByGUID(packet.Player, name))
     {
-        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, guid);
+        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, packet.Player);
         return;
     }
 
     std::wstring wname;
     if (!Utf8toWStr(name, wname))
     {
-        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, guid);
+        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, packet.Player);
         return;
     }
 
     if (!isCyrillicCharacter(wname[0]))                      // name already stored as only single alphabet using
     {
-        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, guid);
-        return;
-    }
-
-    std::string name2;
-    DeclinedName declinedname;
-
-    recvData >> name2;
-
-    if (name2 != name)                                       // character have different name
-    {
-        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, guid);
+        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, packet.Player);
         return;
     }
 
     for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
     {
-        recvData >> declinedname.name[i];
-        if (!normalizePlayerName(declinedname.name[i]))
+        if (!normalizePlayerName(packet.DeclinedNames.name[i]))
         {
-            SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, guid);
+            SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, packet.Player);
             return;
         }
     }
 
-    if (!ObjectMgr::CheckDeclinedNames(wname, declinedname))
+    if (!ObjectMgr::CheckDeclinedNames(wname, packet.DeclinedNames))
     {
-        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, guid);
+        SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_ERROR, packet.Player);
         return;
     }
 
     for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
-        CharacterDatabase.EscapeString(declinedname.name[i]);
+        CharacterDatabase.EscapeString(packet.DeclinedNames.name[i]);
 
     SQLTransaction trans = CharacterDatabase.BeginTransaction();
 
     PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_DECLINED_NAME);
-    stmt->setUInt64(0, guid.GetCounter());
+    stmt->setUInt64(0, packet.Player.GetCounter());
     trans->Append(stmt);
 
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CHAR_DECLINED_NAME);
-    stmt->setUInt64(0, guid.GetCounter());
+    stmt->setUInt64(0, packet.Player.GetCounter());
 
-    for (uint8 i = 0; i < 5; i++)
-        stmt->setString(i+1, declinedname.name[i]);
+    for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; i++)
+        stmt->setString(i + 1, packet.DeclinedNames.name[i]);
 
     trans->Append(stmt);
 
     CharacterDatabase.CommitTransaction(trans);
 
-    SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_SUCCESS, guid);
+    SendSetPlayerDeclinedNamesResult(DECLINED_NAMES_RESULT_SUCCESS, packet.Player);
 }
 
 void WorldSession::HandleAlterAppearance(WorldPackets::Character::AlterApperance& packet)
@@ -1444,12 +1503,25 @@ void WorldSession::HandleAlterAppearance(WorldPackets::Character::AlterApperance
     if (bs_face && (bs_face->Type != 4 || bs_face->Race != _player->getRace() || bs_face->Sex != _player->GetByteValue(PLAYER_BYTES_3, PLAYER_BYTES_3_OFFSET_GENDER)))
         return;
 
+    std::array<BarberShopStyleEntry const*, PLAYER_CUSTOM_DISPLAY_SIZE> customDisplayEntries;
+    std::array<uint8, PLAYER_CUSTOM_DISPLAY_SIZE> customDisplay;
+    for (std::size_t i = 0; i < PLAYER_CUSTOM_DISPLAY_SIZE; ++i)
+    {
+        BarberShopStyleEntry const* bs_customDisplay = sBarberShopStyleStore.LookupEntry(packet.NewCustomDisplay[i]);
+        if (bs_customDisplay && (bs_customDisplay->Type != 5 + i || bs_customDisplay->Race != _player->getRace() || bs_customDisplay->Sex != _player->GetByteValue(PLAYER_BYTES_3, PLAYER_BYTES_3_OFFSET_GENDER)))
+            return;
+
+        customDisplayEntries[i] = bs_customDisplay;
+        customDisplay[i] = bs_customDisplay ? bs_customDisplay->Data : 0;
+    }
+
     if (!Player::ValidateAppearance(_player->getRace(), _player->getClass(), _player->GetByteValue(PLAYER_BYTES_3, PLAYER_BYTES_3_OFFSET_GENDER),
         bs_hair->Data,
         packet.NewHairColor,
         bs_face ? bs_face->Data : _player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_FACE_ID),
         bs_facialHair->Data,
-        bs_skinColor ? bs_skinColor->Data : _player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_SKIN_ID)))
+        bs_skinColor ? bs_skinColor->Data : _player->GetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_SKIN_ID),
+        customDisplay))
         return;
 
     GameObject* go = _player->FindNearestGameObjectOfType(GAMEOBJECT_TYPE_BARBER_CHAIR, 5.0f);
@@ -1465,7 +1537,7 @@ void WorldSession::HandleAlterAppearance(WorldPackets::Character::AlterApperance
         return;
     }
 
-    uint32 cost = _player->GetBarberShopCost(bs_hair, packet.NewHairColor, bs_facialHair, bs_skinColor, bs_face);
+    uint32 cost = _player->GetBarberShopCost(bs_hair, packet.NewHairColor, bs_facialHair, bs_skinColor, bs_face, customDisplayEntries);
 
     // 0 - ok
     // 1, 3 - not enough money
@@ -1479,7 +1551,7 @@ void WorldSession::HandleAlterAppearance(WorldPackets::Character::AlterApperance
     SendBarberShopResult(BARBER_SHOP_RESULT_SUCCESS);
 
     _player->ModifyMoney(-int64(cost));                     // it isn't free
-    _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GOLD_SPENT_AT_BARBER, cost);
+    _player->UpdateCriteria(CRITERIA_TYPE_GOLD_SPENT_AT_BARBER, cost);
 
     _player->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_STYLE_ID, uint8(bs_hair->Data));
     _player->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_HAIR_COLOR_ID, uint8(packet.NewHairColor));
@@ -1489,31 +1561,12 @@ void WorldSession::HandleAlterAppearance(WorldPackets::Character::AlterApperance
     if (bs_face)
         _player->SetByteValue(PLAYER_BYTES, PLAYER_BYTES_OFFSET_FACE_ID, uint8(bs_face->Data));
 
-    _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_VISIT_BARBER_SHOP, 1);
+    for (uint32 i = 0; i < PLAYER_CUSTOM_DISPLAY_SIZE; ++i)
+        _player->SetByteValue(PLAYER_BYTES_2, PLAYER_BYTES_2_OFFSET_CUSTOM_DISPLAY_OPTION + i, customDisplay[i]);
+
+    _player->UpdateCriteria(CRITERIA_TYPE_VISIT_BARBER_SHOP, 1);
 
     _player->SetStandState(UNIT_STAND_STATE_STAND);
-}
-
-void WorldSession::HandleRemoveGlyph(WorldPacket& recvData)
-{
-    uint32 slot;
-    recvData >> slot;
-
-    if (slot >= MAX_GLYPH_SLOT_INDEX)
-    {
-        TC_LOG_DEBUG("network", "Client sent wrong glyph slot number in opcode CMSG_REMOVE_GLYPH %u", slot);
-        return;
-    }
-
-    if (uint32 glyph = _player->GetGlyph(_player->GetActiveTalentGroup(), slot))
-    {
-        if (GlyphPropertiesEntry const* gp = sGlyphPropertiesStore.LookupEntry(glyph))
-        {
-            _player->RemoveAurasDueToSpell(gp->SpellID);
-            _player->SetGlyph(slot, 0);
-            _player->SendTalentsInfoData();
-        }
-    }
 }
 
 void WorldSession::HandleCharCustomizeOpcode(WorldPackets::Character::CharCustomize& packet)
@@ -1550,9 +1603,9 @@ void WorldSession::HandleCharCustomizeCallback(PreparedQueryResult result, World
     uint8 plrClass = fields[2].GetUInt8();
     uint8 plrGender = fields[3].GetUInt8();
     uint16 atLoginFlags = fields[4].GetUInt16();
-    uint32 playerBytes2 = fields[5].GetUInt32();
 
-    if (!Player::ValidateAppearance(plrRace, plrClass, plrGender, customizeInfo->HairStyleID, customizeInfo->HairColorID, customizeInfo->FaceID, customizeInfo->FacialHairStyleID, customizeInfo->SkinID, true))
+    if (!Player::ValidateAppearance(plrRace, plrClass, plrGender, customizeInfo->HairStyleID, customizeInfo->HairColorID, customizeInfo->FaceID,
+        customizeInfo->FacialHairStyleID, customizeInfo->SkinID, customizeInfo->CustomDisplay))
     {
         SendCharCustomize(CHAR_CREATE_ERROR, customizeInfo);
         return;
@@ -1606,15 +1659,18 @@ void WorldSession::HandleCharCustomizeCallback(PreparedQueryResult result, World
 
     /// Customize
     {
-        playerBytes2 &= ~0xFF;
-        playerBytes2 |= customizeInfo->FacialHairStyleID;
-
-        stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GENDER_PLAYERBYTES);
+        stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GENDER_AND_APPEARANCE);
 
         stmt->setUInt8(0, customizeInfo->SexID);
-        stmt->setUInt32(1, customizeInfo->SkinID | (uint32(customizeInfo->FaceID) << 8) | (uint32(customizeInfo->HairStyleID) << 16) | (uint32(customizeInfo->HairColorID) << 24));
-        stmt->setUInt32(2, playerBytes2);
-        stmt->setUInt64(3, lowGuid);
+        stmt->setUInt8(1, customizeInfo->SkinID);
+        stmt->setUInt8(2, customizeInfo->FaceID);
+        stmt->setUInt8(3, customizeInfo->HairStyleID);
+        stmt->setUInt8(4, customizeInfo->HairColorID);
+        stmt->setUInt8(5, customizeInfo->FacialHairStyleID);
+        stmt->setUInt8(6, customizeInfo->CustomDisplay[0]);
+        stmt->setUInt8(7, customizeInfo->CustomDisplay[1]);
+        stmt->setUInt8(8, customizeInfo->CustomDisplay[2]);
+        stmt->setUInt64(9, lowGuid);
 
         trans->Append(stmt);
     }
@@ -1649,29 +1705,86 @@ void WorldSession::HandleEquipmentSetSave(WorldPackets::EquipmentSet::SaveEquipm
     if (saveEquipmentSet.Set.SetID >= MAX_EQUIPMENT_SET_INDEX) // client set slots amount
         return;
 
+    if (saveEquipmentSet.Set.Type > EquipmentSetInfo::TRANSMOG)
+        return;
+
     for (uint8 i = 0; i < EQUIPMENT_SLOT_END; ++i)
     {
         if (!(saveEquipmentSet.Set.IgnoreMask & (1 << i)))
         {
-            ObjectGuid const& itemGuid = saveEquipmentSet.Set.Pieces[i];
+            if (saveEquipmentSet.Set.Type == EquipmentSetInfo::EQUIPMENT)
+            {
+                saveEquipmentSet.Set.Appearances[i] = 0;
 
-            Item* item = _player->GetItemByPos(INVENTORY_SLOT_BAG_0, i);
+                ObjectGuid const& itemGuid = saveEquipmentSet.Set.Pieces[i];
 
-            /// cheating check 1 (item equipped but sent empty guid)
-            if (!item && !itemGuid.IsEmpty())
-                return;
+                Item* item = _player->GetItemByPos(INVENTORY_SLOT_BAG_0, i);
 
-            /// cheating check 2 (sent guid does not match equipped item)
-            if (item && item->GetGUID() != itemGuid)
-                return;
+                /// cheating check 1 (item equipped but sent empty guid)
+                if (!item && !itemGuid.IsEmpty())
+                    return;
+
+                /// cheating check 2 (sent guid does not match equipped item)
+                if (item && item->GetGUID() != itemGuid)
+                    return;
+            }
+            else
+            {
+                saveEquipmentSet.Set.Pieces[i].Clear();
+                if (saveEquipmentSet.Set.Appearances[i])
+                {
+                    if (!sItemModifiedAppearanceStore.LookupEntry(saveEquipmentSet.Set.Appearances[i]))
+                        return;
+
+                    bool hasAppearance, isTemporary;
+                    std::tie(hasAppearance, isTemporary) = GetCollectionMgr()->HasItemAppearance(saveEquipmentSet.Set.Appearances[i]);
+                    if (!hasAppearance)
+                        return;
+                }
+            }
         }
         else
+        {
             saveEquipmentSet.Set.Pieces[i].Clear();
+            saveEquipmentSet.Set.Appearances[i] = 0;
+        }
     }
 
     saveEquipmentSet.Set.IgnoreMask &= 0x7FFFF; /// clear invalid bits (i > EQUIPMENT_SLOT_END)
+    if (saveEquipmentSet.Set.Type == EquipmentSetInfo::EQUIPMENT)
+    {
+        saveEquipmentSet.Set.Enchants[0] = 0;
+        saveEquipmentSet.Set.Enchants[1] = 0;
+    }
+    else
+    {
+        auto validateIllusion = [this](uint32 enchantId) -> bool
+        {
+            SpellItemEnchantmentEntry const* illusion = sSpellItemEnchantmentStore.LookupEntry(enchantId);
+            if (!illusion)
+                return false;
 
-    _player->SetEquipmentSet(std::move(saveEquipmentSet.Set));
+            if (!illusion->ItemVisual || !(illusion->Flags & ENCHANTMENT_COLLECTABLE))
+                return false;
+
+            if (PlayerConditionEntry const* condition = sPlayerConditionStore.LookupEntry(illusion->PlayerConditionID))
+                if (!sConditionMgr->IsPlayerMeetingCondition(_player, condition))
+                    return false;
+
+            if (illusion->ScalingClassRestricted > 0 && uint8(illusion->ScalingClassRestricted) != _player->getClass())
+                return false;
+
+            return true;
+        };
+
+        if (saveEquipmentSet.Set.Enchants[0] && !validateIllusion(saveEquipmentSet.Set.Enchants[0]))
+            return;
+
+        if (saveEquipmentSet.Set.Enchants[1] && !validateIllusion(saveEquipmentSet.Set.Enchants[1]))
+            return;
+    }
+
+    _player->SetEquipmentSet(saveEquipmentSet.Set);
 }
 
 void WorldSession::HandleDeleteEquipmentSet(WorldPackets::EquipmentSet::DeleteEquipmentSet& deleteEquipmentSet)
@@ -1777,8 +1890,6 @@ void WorldSession::HandleCharRaceOrFactionChangeCallback(PreparedQueryResult res
     Field* fields              = result->Fetch();
     uint16 atLoginFlags        = fields[0].GetUInt16();
     std::string knownTitlesStr = fields[1].GetString();
-    uint32 playerBytes         = fields[2].GetUInt32();
-    uint32 playerBytes2        = fields[3].GetUInt32();
 
     uint16 usedLoginFlag = (factionChangeInfo->FactionChange ? AT_LOGIN_CHANGE_FACTION : AT_LOGIN_CHANGE_RACE);
     if (!(atLoginFlags & usedLoginFlag))
@@ -1876,51 +1987,17 @@ void WorldSession::HandleCharRaceOrFactionChangeCallback(PreparedQueryResult res
 
     // Customize
     {
-        if (factionChangeInfo->SkinID)
-        {
-            playerBytes &= ~uint32(0xFF);
-            playerBytes |= *factionChangeInfo->SkinID;
-        }
-        else
-            factionChangeInfo->SkinID = uint8(playerBytes & 0xFF);
-
-        if (factionChangeInfo->FaceID)
-        {
-            playerBytes &= ~(uint32(0xFF) << 8);
-            playerBytes |= uint32(*factionChangeInfo->FaceID) << 8;
-        }
-        else
-            factionChangeInfo->FaceID = uint8((playerBytes2 >> 8) & 0xFF);
-
-        if (factionChangeInfo->HairStyleID)
-        {
-            playerBytes &= ~(uint32(0xFF) << 16);
-            playerBytes |= uint32(*factionChangeInfo->HairStyleID) << 16;
-        }
-        else
-            factionChangeInfo->HairStyleID = uint8((playerBytes2 >> 16) & 0xFF);
-
-        if (factionChangeInfo->HairColorID)
-        {
-            playerBytes &= ~(uint32(0xFF) << 24);
-            playerBytes |= uint32(*factionChangeInfo->HairColorID) << 24;
-        }
-        else
-            factionChangeInfo->HairColorID = uint8((playerBytes2 >> 24) & 0xFF);
-
-        if (factionChangeInfo->FacialHairStyleID)
-        {
-            playerBytes2 &= ~0xFF;
-            playerBytes2 |= *factionChangeInfo->FacialHairStyleID;
-        }
-        else
-            factionChangeInfo->FacialHairStyleID = int8(playerBytes2 & 0xFF);
-
-        stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GENDER_PLAYERBYTES);
+        stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GENDER_AND_APPEARANCE);
         stmt->setUInt8(0, factionChangeInfo->SexID);
-        stmt->setUInt32(1, playerBytes);
-        stmt->setUInt32(2, playerBytes2);
-        stmt->setUInt64(3, lowGuid);
+        stmt->setUInt8(1, factionChangeInfo->SkinID);
+        stmt->setUInt8(2, factionChangeInfo->FaceID);
+        stmt->setUInt8(3, factionChangeInfo->HairStyleID);
+        stmt->setUInt8(4, factionChangeInfo->HairColorID);
+        stmt->setUInt8(5, factionChangeInfo->FacialHairStyleID);
+        stmt->setUInt8(6, factionChangeInfo->CustomDisplay[0]);
+        stmt->setUInt8(7, factionChangeInfo->CustomDisplay[1]);
+        stmt->setUInt8(8, factionChangeInfo->CustomDisplay[2]);
+        stmt->setUInt64(9, lowGuid);
 
         trans->Append(stmt);
     }
@@ -2095,8 +2172,8 @@ void WorldSession::HandleCharRaceOrFactionChangeCallback(PreparedQueryResult res
                 trans->Append(stmt);
 
                 stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_ACHIEVEMENT);
-                stmt->setUInt16(0, uint16(newTeamId == TEAM_ALLIANCE ? achiev_alliance : achiev_horde));
-                stmt->setUInt16(1, uint16(newTeamId == TEAM_ALLIANCE ? achiev_horde : achiev_alliance));
+                stmt->setUInt32(0, uint16(newTeamId == TEAM_ALLIANCE ? achiev_alliance : achiev_horde));
+                stmt->setUInt32(1, uint16(newTeamId == TEAM_ALLIANCE ? achiev_horde : achiev_alliance));
                 stmt->setUInt64(2, lowGuid);
                 trans->Append(stmt);
             }
@@ -2241,8 +2318,8 @@ void WorldSession::HandleCharRaceOrFactionChangeCallback(PreparedQueryResult res
                     uint32 title_alliance = it->first;
                     uint32 title_horde = it->second;
 
-                    CharTitlesEntry const* atitleInfo = sCharTitlesStore.LookupEntry(title_alliance);
-                    CharTitlesEntry const* htitleInfo = sCharTitlesStore.LookupEntry(title_horde);
+                    CharTitlesEntry const* atitleInfo = sCharTitlesStore.AssertEntry(title_alliance);
+                    CharTitlesEntry const* htitleInfo = sCharTitlesStore.AssertEntry(title_horde);
                     // new team
                     if (newTeamId == TEAM_ALLIANCE)
                     {
@@ -2576,12 +2653,13 @@ void WorldSession::SendCharFactionChange(ResponseCodes result, WorldPackets::Cha
         packet.Display = boost::in_place();
         packet.Display->Name = factionChangeInfo->Name;
         packet.Display->SexID = factionChangeInfo->SexID;
-        packet.Display->SkinID = *factionChangeInfo->SkinID;
-        packet.Display->HairColorID = *factionChangeInfo->HairColorID;
-        packet.Display->HairStyleID = *factionChangeInfo->HairStyleID;
-        packet.Display->FacialHairStyleID = *factionChangeInfo->FacialHairStyleID;
-        packet.Display->FaceID = *factionChangeInfo->FaceID;
+        packet.Display->SkinID = factionChangeInfo->SkinID;
+        packet.Display->HairColorID = factionChangeInfo->HairColorID;
+        packet.Display->HairStyleID = factionChangeInfo->HairStyleID;
+        packet.Display->FacialHairStyleID = factionChangeInfo->FacialHairStyleID;
+        packet.Display->FaceID = factionChangeInfo->FaceID;
         packet.Display->RaceID = factionChangeInfo->RaceID;
+        packet.Display->CustomDisplay = factionChangeInfo->CustomDisplay;
     }
 
     SendPacket(packet.Write());
@@ -2589,11 +2667,11 @@ void WorldSession::SendCharFactionChange(ResponseCodes result, WorldPackets::Cha
 
 void WorldSession::SendSetPlayerDeclinedNamesResult(DeclinedNameResult result, ObjectGuid guid)
 {
-    WorldPacket data(SMSG_SET_PLAYER_DECLINED_NAMES_RESULT, 4 + 8);
-    data << uint32(result);
-    if (result == DECLINED_NAMES_RESULT_SUCCESS)
-        data << guid;
-    SendPacket(&data);
+    WorldPackets::Character::SetPlayerDeclinedNamesResult packet;
+    packet.ResultCode = result;
+    packet.Player = guid;
+
+    SendPacket(packet.Write());
 }
 
 void WorldSession::SendBarberShopResult(BarberShopResult result)

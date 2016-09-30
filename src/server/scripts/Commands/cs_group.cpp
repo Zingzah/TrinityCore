@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -347,12 +347,12 @@ public:
                 onlineState = "online";
                 phase = (!p->IsGameMaster() ? p->GetPhaseMask() : -1);
 
-                AreaTableEntry const* area = GetAreaEntryByAreaID(p->GetAreaId());
+                AreaTableEntry const* area = sAreaTableStore.LookupEntry(p->GetAreaId());
                 if (area)
                 {
-                    AreaTableEntry const* zone = GetAreaEntryByAreaID(area->ParentAreaID);
+                    AreaTableEntry const* zone = sAreaTableStore.LookupEntry(area->ParentAreaID);
                     if (zone)
-                        zoneName = zone->AreaName_lang;
+                        zoneName = zone->AreaName->Str[handler->GetSessionDbcLocale()];
                 }
             }
             else

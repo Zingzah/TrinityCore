@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -259,11 +259,11 @@ class npc_blazing_monstrosity : public CreatureScript
             {
             }
 
-            void EnterEvadeMode() override
+            void EnterEvadeMode(EvadeReason why) override
             {
                 _summons.DespawnAll();
                 _events.Reset();
-                PassiveAI::EnterEvadeMode();
+                PassiveAI::EnterEvadeMode(why);
             }
 
             void JustDied(Unit* /*killer*/) override
@@ -281,7 +281,7 @@ class npc_blazing_monstrosity : public CreatureScript
             {
                 DoZoneInCombat();
                 me->RemoveAurasDueToSpell(SPELL_SLEEP_ULTRA_HIGH_PRIORITY);
-                me->PlayOneShotAnimKit(ANIM_KIT_BIRD_WAKE);
+                me->PlayOneShotAnimKitId(ANIM_KIT_BIRD_WAKE);
                 _events.Reset();
                 _events.ScheduleEvent(EVENT_START_SPITTING, 6000);
                 _events.ScheduleEvent(EVENT_CONTINUE_SPITTING, 9000);
@@ -602,7 +602,7 @@ class spell_alysrazor_turn_monstrosity : public SpellScriptLoader
             void TurnBird(SpellEffIndex effIndex)
             {
                 PreventHitDefaultEffect(effIndex);
-                GetHitUnit()->PlayOneShotAnimKit(ANIM_KIT_BIRD_TURN);
+                GetHitUnit()->PlayOneShotAnimKitId(ANIM_KIT_BIRD_TURN);
             }
 
             void Register() override

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -196,7 +196,7 @@ class boss_kologarn : public CreatureScript
                     if (!right && !left)
                         events.ScheduleEvent(EVENT_STONE_SHOUT, 5000);
 
-                    instance->DoStartTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, CRITERIA_DISARMED);
+                    instance->DoStartCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, CRITERIA_DISARMED);
                 }
                 else
                 {

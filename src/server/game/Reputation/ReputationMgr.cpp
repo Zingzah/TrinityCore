@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -19,7 +19,6 @@
 #include "DatabaseEnv.h"
 #include "ReputationMgr.h"
 #include "ReputationPackets.h"
-#include "DBCStores.h"
 #include "Player.h"
 #include "WorldPacket.h"
 #include "World.h"
@@ -44,6 +43,11 @@ ReputationRank ReputationMgr::ReputationToRank(int32 standing)
             return ReputationRank(i);
     }
     return MIN_REPUTATION_RANK;
+}
+
+FactionState const* ReputationMgr::GetState(FactionEntry const* factionEntry) const
+{
+    return factionEntry->CanHaveReputation() ? GetState(factionEntry->ReputationIndex) : NULL;
 }
 
 bool ReputationMgr::IsAtWar(uint32 faction_id) const
@@ -128,6 +132,11 @@ ReputationRank ReputationMgr::GetBaseRank(FactionEntry const* factionEntry) cons
     return ReputationToRank(reputation);
 }
 
+ReputationRank const* ReputationMgr::GetForcedRankIfAny(FactionTemplateEntry const* factionTemplateEntry) const
+{
+    return GetForcedRankIfAny(factionTemplateEntry->Faction);
+}
+
 void ReputationMgr::ApplyForceReaction(uint32 faction_id, ReputationRank rank, bool apply)
 {
     if (apply)
@@ -174,35 +183,24 @@ void ReputationMgr::SendForceReactions()
 
 void ReputationMgr::SendState(FactionState const* faction)
 {
-    uint32 count = 1;
-
-    WorldPacket data(SMSG_SET_FACTION_STANDING, 17);
-    data << float(0);
-    data << uint8(_sendFactionIncreased);
-    _sendFactionIncreased = false; // Reset
-
-    size_t p_count = data.wpos();
-    data << uint32(count);
-
-    data << uint32(faction->ReputationListID);
-    data << uint32(faction->Standing);
-
+    WorldPackets::Reputation::SetFactionStanding setFactionStanding;
+    setFactionStanding.ReferAFriendBonus = 0.0f;
+    setFactionStanding.BonusFromAchievementSystem = 0.0f;
+    setFactionStanding.Faction.emplace_back(int32(faction->ReputationListID), faction->Standing);
     for (FactionStateList::iterator itr = _factions.begin(); itr != _factions.end(); ++itr)
     {
         if (itr->second.needSend)
         {
             itr->second.needSend = false;
             if (itr->second.ReputationListID != faction->ReputationListID)
-            {
-                data << uint32(itr->second.ReputationListID);
-                data << uint32(itr->second.Standing);
-                ++count;
-            }
+                setFactionStanding.Faction.emplace_back(int32(itr->second.ReputationListID), itr->second.Standing);
         }
     }
 
-    data.put<uint32>(p_count, count);
-    _player->SendDirectMessage(&data);
+    setFactionStanding.ShowVisual = _sendFactionIncreased;
+    _player->SendDirectMessage(setFactionStanding.Write());
+
+    _sendFactionIncreased = false; // Reset
 }
 
 void ReputationMgr::SendInitialReputations()
@@ -246,11 +244,9 @@ void ReputationMgr::Initialize()
     _exaltedFactionCount = 0;
     _sendFactionIncreased = false;
 
-    for (unsigned int i = 1; i < sFactionStore.GetNumRows(); i++)
+    for (FactionEntry const* factionEntry : sFactionStore)
     {
-        FactionEntry const* factionEntry = sFactionStore.LookupEntry(i);
-
-        if (factionEntry && factionEntry->CanHaveReputation())
+        if (factionEntry->CanHaveReputation())
         {
             FactionState newFaction;
             newFaction.ID = factionEntry->ID;
@@ -294,7 +290,7 @@ bool ReputationMgr::SetReputation(FactionEntry const* factionEntry, int32 standi
     {
         float spillOverRepOut = float(standing);
         // check for sub-factions that receive spillover
-        std::vector<uint32> const* flist = GetFactionTeamList(factionEntry->ID);
+        std::vector<uint32> const* flist = sDB2Manager.GetFactionTeamList(factionEntry->ID);
         // if has no sub-factions, check for factions with same parent
         if (!flist && factionEntry->ParentFactionID && factionEntry->ParentFactionModOut != 0.0f)
         {
@@ -309,7 +305,7 @@ bool ReputationMgr::SetReputation(FactionEntry const* factionEntry, int32 standi
                 }
                 else    // spill to "sister" factions
                 {
-                    flist = GetFactionTeamList(factionEntry->ParentFactionID);
+                    flist = sDB2Manager.GetFactionTeamList(factionEntry->ParentFactionID);
                 }
             }
         }
@@ -378,11 +374,11 @@ bool ReputationMgr::SetOneFactionReputation(FactionEntry const* factionEntry, in
         UpdateRankCounters(old_rank, new_rank);
 
         _player->ReputationChanged(factionEntry);
-        _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_KNOWN_FACTIONS,          factionEntry->ID);
-        _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GAIN_REPUTATION,         factionEntry->ID);
-        _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GAIN_EXALTED_REPUTATION, factionEntry->ID);
-        _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GAIN_REVERED_REPUTATION, factionEntry->ID);
-        _player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GAIN_HONORED_REPUTATION, factionEntry->ID);
+        _player->UpdateCriteria(CRITERIA_TYPE_KNOWN_FACTIONS,          factionEntry->ID);
+        _player->UpdateCriteria(CRITERIA_TYPE_GAIN_REPUTATION,         factionEntry->ID);
+        _player->UpdateCriteria(CRITERIA_TYPE_GAIN_EXALTED_REPUTATION, factionEntry->ID);
+        _player->UpdateCriteria(CRITERIA_TYPE_GAIN_REVERED_REPUTATION, factionEntry->ID);
+        _player->UpdateCriteria(CRITERIA_TYPE_GAIN_HONORED_REPUTATION, factionEntry->ID);
 
         return true;
     }

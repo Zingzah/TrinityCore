@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -67,18 +67,14 @@ namespace WorldPackets
     }
 }
 
-class BattlegroundMgr
+class TC_GAME_API BattlegroundMgr
 {
     private:
         BattlegroundMgr();
         ~BattlegroundMgr();
 
     public:
-        static BattlegroundMgr* instance()
-        {
-            static BattlegroundMgr instance;
-            return &instance;
-        }
+        static BattlegroundMgr* instance();
 
         void Update(uint32 diff);
 
@@ -90,7 +86,7 @@ class BattlegroundMgr
         void BuildBattlegroundStatusActive(WorldPackets::Battleground::BattlefieldStatusActive* battlefieldStatus, Battleground* bg, Player* player, uint32 ticketId, uint32 joinTime, uint32 arenaType);
         void BuildBattlegroundStatusQueued(WorldPackets::Battleground::BattlefieldStatusQueued* battlefieldStatus, Battleground* bg, Player* player, uint32 ticketId, uint32 joinTime, uint32 avgWaitTime, uint32 arenaType, bool asGroup);
         void BuildBattlegroundStatusFailed(WorldPackets::Battleground::BattlefieldStatusFailed* battlefieldStatus, Battleground* bg, Player* pPlayer, uint32 ticketId, uint32 arenaType, GroupJoinBattlegroundResult result, ObjectGuid const* errorGuid = nullptr);
-        void SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid guid);
+        void SendAreaSpiritHealerQueryOpcode(Player* player, Battleground* bg, ObjectGuid const& guid);
 
         /* Battlegrounds */
         Battleground* GetBattleground(uint32 InstanceID, BattlegroundTypeId bgTypeId);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -24,7 +24,6 @@
 #include "AuctionHouseMgr.h"
 #include "Log.h"
 #include "Language.h"
-#include "UpdateMask.h"
 #include "Util.h"
 #include "AccountMgr.h"
 #include "AuctionHousePackets.h"
@@ -55,7 +54,7 @@ void WorldSession::SendAuctionHello(ObjectGuid guid, Creature* unit)
         return;
     }
 
-    AuctionHouseEntry const* ahEntry = AuctionHouseMgr::GetAuctionHouseEntry(unit->getFaction());
+    AuctionHouseEntry const* ahEntry = AuctionHouseMgr::GetAuctionHouseEntry(unit->getFaction(), nullptr);
     if (!ahEntry)
         return;
 
@@ -139,7 +138,8 @@ void WorldSession::HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSell
         return;
     }
 
-    AuctionHouseEntry const* auctionHouseEntry = AuctionHouseMgr::GetAuctionHouseEntry(creature->getFaction());
+    uint32 houseId = 0;
+    AuctionHouseEntry const* auctionHouseEntry = AuctionHouseMgr::GetAuctionHouseEntry(creature->getFaction(), &houseId);
     if (!auctionHouseEntry)
     {
         TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit (%s) has wrong faction.", packet.Auctioneer.ToString().c_str());
@@ -258,25 +258,28 @@ void WorldSession::HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSell
         AH->buyout = packet.BuyoutPrice;
         AH->expire_time = time(NULL) + auctionTime;
         AH->deposit = deposit;
+        AH->etime = packet.RunTime;
         AH->auctionHouseEntry = auctionHouseEntry;
 
         TC_LOG_INFO("network", "CMSG_AUCTION_SELL_ITEM: %s %s is selling item %s %s to auctioneer " UI64FMTD " with count %u with initial bid " UI64FMTD " with buyout " UI64FMTD " and with time %u (in sec) in auctionhouse %u",
             _player->GetGUID().ToString().c_str(), _player->GetName().c_str(), item->GetGUID().ToString().c_str(), item->GetTemplate()->GetDefaultLocaleName(), AH->auctioneer, item->GetCount(), packet.MinBid, packet.BuyoutPrice, auctionTime, AH->GetHouseId());
         sAuctionMgr->AddAItem(item);
         auctionHouse->AddAuction(AH);
+        sAuctionMgr->PendingAuctionAdd(_player, AH);
 
         _player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
 
         SQLTransaction trans = CharacterDatabase.BeginTransaction();
         item->DeleteFromInventoryDB(trans);
         item->SaveToDB(trans);
+
         AH->SaveToDB(trans);
         _player->SaveInventoryAndGoldToDB(trans);
         CharacterDatabase.CommitTransaction(trans);
 
         SendAuctionCommandResult(AH, AUCTION_SELL_ITEM, ERR_AUCTION_OK);
 
-        GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CREATE_AUCTION, 1);
+        GetPlayer()->UpdateCriteria(CRITERIA_TYPE_CREATE_AUCTION, 1);
     }
     else // Required stack size of auction does not match to current item stack size, clone item and set correct stack size
     {
@@ -306,12 +309,14 @@ void WorldSession::HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSell
         AH->buyout = packet.BuyoutPrice;
         AH->expire_time = time(NULL) + auctionTime;
         AH->deposit = deposit;
+        AH->etime = packet.RunTime;
         AH->auctionHouseEntry = auctionHouseEntry;
 
         TC_LOG_INFO("network", "CMSG_AUCTION_SELL_ITEM: %s %s is selling %s %s to auctioneer " UI64FMTD " with count %u with initial bid " UI64FMTD " with buyout " UI64FMTD " and with time %u (in sec) in auctionhouse %u",
             _player->GetGUID().ToString().c_str(), _player->GetName().c_str(), newItem->GetGUID().ToString().c_str(), newItem->GetTemplate()->GetDefaultLocaleName(), AH->auctioneer, newItem->GetCount(), packet.MinBid, packet.BuyoutPrice, auctionTime, AH->GetHouseId());
         sAuctionMgr->AddAItem(newItem);
         auctionHouse->AddAuction(AH);
+        sAuctionMgr->PendingAuctionAdd(_player, AH);
 
         for (auto const& packetItem : packet.Items)
         {
@@ -349,10 +354,8 @@ void WorldSession::HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSell
 
         SendAuctionCommandResult(AH, AUCTION_SELL_ITEM, ERR_AUCTION_OK);
 
-        GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CREATE_AUCTION, 1);
+        GetPlayer()->UpdateCriteria(CRITERIA_TYPE_CREATE_AUCTION, 1);
     }
-
-    _player->ModifyMoney(-int32(deposit));
 }
 
 // this function is called when client bids or buys out auction
@@ -434,7 +437,7 @@ void WorldSession::HandleAuctionPlaceBid(WorldPackets::AuctionHouse::AuctionPlac
 
         auction->bidder = player->GetGUID().GetCounter();
         auction->bid = packet.BidAmount;
-        GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_AUCTION_BID, packet.BidAmount);
+        GetPlayer()->UpdateCriteria(CRITERIA_TYPE_HIGHEST_AUCTION_BID, packet.BidAmount);
 
         PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AUCTION_BID);
         stmt->setUInt64(0, auction->bidder);
@@ -463,7 +466,7 @@ void WorldSession::HandleAuctionPlaceBid(WorldPackets::AuctionHouse::AuctionPlac
         }
         auction->bidder = player->GetGUID().GetCounter();
         auction->bid = auction->buyout;
-        GetPlayer()->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_AUCTION_BID, auction->buyout);
+        GetPlayer()->UpdateCriteria(CRITERIA_TYPE_HIGHEST_AUCTION_BID, auction->buyout);
 
         SendAuctionCommandResult(auction, AUCTION_PLACE_BID, ERR_AUCTION_OK);
 
@@ -612,10 +615,8 @@ void WorldSession::HandleAuctionListItems(WorldPackets::AuctionHouse::AuctionLis
 
     AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->getFaction());
 
-    TC_LOG_DEBUG("auctionHouse", "Auctionhouse search (%s), searchedname: %s, levelmin: %u, levelmax: %u, auctionSlotID: %u, auctionMainCategory: %u, auctionSubCategory: %u, quality: %u, usable: %u",
-        packet.Auctioneer.ToString().c_str(), packet.Name.c_str(), packet.MinLevel, packet.MaxLevel , packet.InvType, packet.ItemClass, packet.ItemSubclass, packet.Quality, packet.OnlyUsable);
-
-    WorldPackets::AuctionHouse::AuctionListItemsResult result;
+    TC_LOG_DEBUG("auctionHouse", "Auctionhouse search (%s), searchedname: %s, levelmin: %u, levelmax: %u, quality: %u, usable: %u",
+        packet.Auctioneer.ToString().c_str(), packet.Name.c_str(), packet.MinLevel, packet.MaxLevel , packet.Quality, packet.OnlyUsable);
 
     // converting string that we try to find to lower case
     std::wstring wsearchedname;
@@ -624,11 +625,31 @@ void WorldSession::HandleAuctionListItems(WorldPackets::AuctionHouse::AuctionLis
 
     wstrToLower(wsearchedname);
 
-    auctionHouse->BuildListAuctionItems(result, _player,
-        wsearchedname, packet.Offset, packet.MinLevel, packet.MaxLevel, packet.OnlyUsable,
-        packet.InvType, packet.ItemClass, packet.ItemSubclass, packet.Quality, result.TotalCount);
+    Optional<AuctionSearchFilters> filters;
 
-    result.DesiredDelay = 300;
+    WorldPackets::AuctionHouse::AuctionListItemsResult result;
+    if (packet.ClassFilters.empty())
+    {
+        filters = boost::in_place();
+
+        for (auto const& classFilter : packet.ClassFilters)
+        {
+            if (!classFilter.SubClassFilters.empty())
+            {
+                for (auto const& subClassFilter : classFilter.SubClassFilters)
+                {
+                    filters->Classes[classFilter.ItemClass].SubclassMask |= 1 << subClassFilter.ItemSubclass;
+                    filters->Classes[classFilter.ItemClass].InvTypes[subClassFilter.ItemSubclass] = subClassFilter.InvTypeMask;
+                }
+            }
+            else
+                filters->Classes[classFilter.ItemClass].SubclassMask = AuctionSearchFilters::FILTER_SKIP_SUBCLASS;
+        }
+    }
+
+    auctionHouse->BuildListAuctionItems(result, _player, wsearchedname, packet.Offset, packet.MinLevel, packet.MaxLevel, packet.OnlyUsable, filters, packet.Quality);
+
+    result.DesiredDelay = sWorld->getIntConfig(CONFIG_AUCTION_SEARCH_DELAY);
     result.OnlyUsable = packet.OnlyUsable;
     SendPacket(result.Write());
 }
@@ -642,12 +663,24 @@ void WorldSession::HandleAuctionListPendingSales(WorldPackets::AuctionHouse::Auc
 
 void WorldSession::HandleReplicateItems(WorldPackets::AuctionHouse::AuctionReplicateItems& packet)
 {
-    //@todo implement this properly
+    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(packet.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER);
+    if (!creature)
+    {
+        TC_LOG_DEBUG("network", "WORLD: HandleReplicateItems - %s not found or you can't interact with him.", packet.Auctioneer.ToString().c_str());
+        return;
+    }
+
+    // remove fake death
+    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
+        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
+
+    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->getFaction());
+
     WorldPackets::AuctionHouse::AuctionReplicateResponse response;
-    response.ChangeNumberCursor = packet.ChangeNumberCursor;
-    response.ChangeNumberGlobal = packet.ChangeNumberGlobal;
-    response.ChangeNumberTombstone = packet.ChangeNumberTombstone;
-    response.DesiredDelay = 300;
+
+    auctionHouse->BuildReplicate(response, GetPlayer(), packet.ChangeNumberGlobal, packet.ChangeNumberCursor, packet.ChangeNumberTombstone, packet.Count);
+
+    response.DesiredDelay = sWorld->getIntConfig(CONFIG_AUCTION_SEARCH_DELAY) * 5;
     response.Result = 0;
     SendPacket(response.Write());
 }

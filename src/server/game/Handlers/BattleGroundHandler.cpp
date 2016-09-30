@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -95,7 +95,7 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPackets::Battleground::Batt
         return;
 
     // expected bracket entry
-    PvPDifficultyEntry const* bracketEntry = GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
+    PvPDifficultyEntry const* bracketEntry = DB2Manager::GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
     if (!bracketEntry)
         return;
 
@@ -314,7 +314,7 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPackets::Battleground::Battl
     bgTypeId = bg->GetTypeID();
 
     // expected bracket entry
-    PvPDifficultyEntry const* bracketEntry = GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
+    PvPDifficultyEntry const* bracketEntry = DB2Manager::GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
     if (!bracketEntry)
         return;
 
@@ -475,7 +475,7 @@ void WorldSession::HandleRequestBattlefieldStatusOpcode(WorldPackets::Battlegrou
                 continue;
 
             // expected bracket entry
-            PvPDifficultyEntry const* bracketEntry = GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
+            PvPDifficultyEntry const* bracketEntry = DB2Manager::GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
             if (!bracketEntry)
                 continue;
 
@@ -487,22 +487,15 @@ void WorldSession::HandleRequestBattlefieldStatusOpcode(WorldPackets::Battlegrou
     }
 }
 
-void WorldSession::HandleBattlemasterJoinArena(WorldPacket& recvData)
+void WorldSession::HandleBattlemasterJoinArena(WorldPackets::Battleground::BattlemasterJoinArena& packet)
 {
-    uint8 arenaslot;                                        // 2v2, 3v3 or 5v5
-
-    recvData >> arenaslot;
-
     // ignore if we already in BG or BG queue
     if (_player->InBattleground())
         return;
 
-    uint32 arenaRating = 0;
-    uint32 matchmakerRating = 0;
+    uint8 arenatype = ArenaTeam::GetTypeBySlot(packet.TeamSizeIndex);
 
-    uint8 arenatype = ArenaTeam::GetTypeBySlot(arenaslot);
-
-    //check existance
+    //check existence
     Battleground* bg = sBattlegroundMgr->GetBattlegroundTemplate(BATTLEGROUND_AA);
     if (!bg)
     {
@@ -510,7 +503,7 @@ void WorldSession::HandleBattlemasterJoinArena(WorldPacket& recvData)
         return;
     }
 
-    if (DisableMgr::IsDisabledFor(DISABLE_TYPE_BATTLEGROUND, BATTLEGROUND_AA, NULL))
+    if (DisableMgr::IsDisabledFor(DISABLE_TYPE_BATTLEGROUND, BATTLEGROUND_AA, nullptr))
     {
         ChatHandler(this).PSendSysMessage(LANG_ARENA_DISABLED);
         return;
@@ -518,11 +511,9 @@ void WorldSession::HandleBattlemasterJoinArena(WorldPacket& recvData)
 
     BattlegroundTypeId bgTypeId = bg->GetTypeID();
     BattlegroundQueueTypeId bgQueueTypeId = BattlegroundMgr::BGQueueTypeId(bgTypeId, arenatype);
-    PvPDifficultyEntry const* bracketEntry = GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
+    PvPDifficultyEntry const* bracketEntry = DB2Manager::GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
     if (!bracketEntry)
         return;
-
-    GroupJoinBattlegroundResult err = ERR_BATTLEGROUND_NONE;
 
     Group* grp = _player->GetGroup();
     // no group found, error
@@ -531,7 +522,7 @@ void WorldSession::HandleBattlemasterJoinArena(WorldPacket& recvData)
     if (grp->GetLeaderGUID() != _player->GetGUID())
         return;
 
-    uint32 ateamId = _player->GetArenaTeamId(arenaslot);
+    uint32 ateamId = _player->GetArenaTeamId(packet.TeamSizeIndex);
     // check real arenateam existence only here (if it was moved to group->CanJoin .. () then we would ahve to get it twice)
     ArenaTeam* at = sArenaTeamMgr->GetArenaTeamById(ateamId);
     if (!at)
@@ -540,30 +531,30 @@ void WorldSession::HandleBattlemasterJoinArena(WorldPacket& recvData)
         return;
     }
 
-    // get the team rating for queueing
-    arenaRating = at->GetRating();
-    matchmakerRating = at->GetAverageMMR(grp);
+    // get the team rating for queuing
+    uint32 arenaRating = at->GetRating();
+    uint32 matchmakerRating = at->GetAverageMMR(grp);
     // the arenateam id must match for everyone in the group
 
     if (arenaRating <= 0)
         arenaRating = 1;
 
-    BattlegroundQueue &bgQueue = sBattlegroundMgr->GetBattlegroundQueue(bgQueueTypeId);
+    BattlegroundQueue& bgQueue = sBattlegroundMgr->GetBattlegroundQueue(bgQueueTypeId);
 
     uint32 avgTime = 0;
-    GroupQueueInfo* ginfo = NULL;
+    GroupQueueInfo* ginfo = nullptr;
 
     ObjectGuid errorGuid;
-    err = grp->CanJoinBattlegroundQueue(bg, bgQueueTypeId, arenatype, arenatype, true, arenaslot, errorGuid);
+    GroupJoinBattlegroundResult err = grp->CanJoinBattlegroundQueue(bg, bgQueueTypeId, arenatype, arenatype, true, packet.TeamSizeIndex, errorGuid);
     if (!err)
     {
-        TC_LOG_DEBUG("bg.battleground", "Battleground: arena team id %u, leader %s queued with matchmaker rating %u for type %u", _player->GetArenaTeamId(arenaslot), _player->GetName().c_str(), matchmakerRating, arenatype);
+        TC_LOG_DEBUG("bg.battleground", "Battleground: arena team id %u, leader %s queued with matchmaker rating %u for type %u", _player->GetArenaTeamId(packet.TeamSizeIndex), _player->GetName().c_str(), matchmakerRating, arenatype);
 
         ginfo = bgQueue.AddGroup(_player, grp, bgTypeId, bracketEntry, arenatype, true, false, arenaRating, matchmakerRating, ateamId);
         avgTime = bgQueue.GetAverageQueueWaitTime(ginfo, bracketEntry->GetBracketId());
     }
 
-    for (GroupReference* itr = grp->GetFirstMember(); itr != NULL; itr = itr->next())
+    for (GroupReference* itr = grp->GetFirstMember(); itr != nullptr; itr = itr->next())
     {
         Player* member = itr->GetSource();
         if (!member)
@@ -604,13 +595,8 @@ void WorldSession::HandleReportPvPAFK(WorldPackets::Battleground::ReportPvPPlaye
     reportedPlayer->ReportedAfkBy(_player);
 }
 
-void WorldSession::HandleRequestRatedBattlefieldInfo(WorldPacket& recvData)
+void WorldSession::HandleRequestRatedBattlefieldInfo(WorldPackets::Battleground::RequestRatedBattlefieldInfo& /*packet*/)
 {
-    uint8 unk;
-    recvData >> unk;
-
-    TC_LOG_DEBUG("bg.battleground", "WorldSession::HandleRequestRatedBattlefieldInfo: unk = %u", unk);
-
     /// @Todo: perfome research in this case
     /// The unk fields are related to arenas
     WorldPacket data(SMSG_RATED_BATTLEFIELD_INFO, 72);
@@ -649,7 +635,7 @@ void WorldSession::HandleGetPVPOptionsEnabled(WorldPackets::Battleground::GetPVP
     SendPacket(pvpOptionsEnabled.Write());
 }
 
-void WorldSession::HandleRequestPvpReward(WorldPacket& /*recvData*/)
+void WorldSession::HandleRequestPvpReward(WorldPackets::Battleground::RequestPVPRewards& /*packet*/)
 {
     _player->SendPvpRewards();
 }
@@ -697,7 +683,7 @@ void WorldSession::HandleHearthAndResurrect(WorldPackets::Battleground::HearthAn
         return;
     }
 
-    AreaTableEntry const* atEntry = GetAreaEntryByAreaID(_player->GetAreaId());
+    AreaTableEntry const* atEntry = sAreaTableStore.LookupEntry(_player->GetAreaId());
     if (!atEntry || !(atEntry->Flags[0] & AREA_FLAG_CAN_HEARTH_AND_RESURRECT))
         return;
 

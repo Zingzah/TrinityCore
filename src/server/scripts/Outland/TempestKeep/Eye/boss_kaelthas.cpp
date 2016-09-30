@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -144,6 +144,7 @@ enum Spells
     // Thaladred the Darkener spells
     SPELL_PSYCHIC_BLOW                          = 10689,
     SPELL_SILENCE                               = 30225,
+    SPELL_REND                                  = 36965,
     // Lord Sanguinar spells
     SPELL_BELLOWING_ROAR                        = 40636,
     // Grand Astromancer Capernian spells
@@ -297,7 +298,7 @@ const float CAPERNIAN_DISTANCE          = 20.0f;            //she casts away fro
 
 Position const afGravityPos = {795.0f, 0.0f, 70.0f};
 
-Position const TransitionPos[6] = 
+Position const TransitionPos[6] =
 {
     // First two values are not static, they seem to differ on each sniff.
     { 794.0522f, -0.96732f, 48.97848f, 0.0f },
@@ -374,7 +375,6 @@ struct advisorbase_ai : public ScriptedAI
 
             me->InterruptNonMeleeSpells(false);
             me->SetHealth(0);
-            me->ClearComboPointHolders();
             me->RemoveAllAurasOnDeath();
             me->ModifyAuraState(AURA_STATE_HEALTHLESS_20_PERCENT, false);
             me->ModifyAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, false);
@@ -881,11 +881,13 @@ class boss_thaladred_the_darkener : public CreatureScript
             {
                 Gaze_Timer = 100;
                 Silence_Timer = 20000;
+                Rend_Timer = 4000;
                 PsychicBlow_Timer = 10000;
             }
 
             uint32 Gaze_Timer;
             uint32 Silence_Timer;
+            uint32 Rend_Timer;
             uint32 PsychicBlow_Timer;
 
             void Reset() override
@@ -938,6 +940,15 @@ class boss_thaladred_the_darkener : public CreatureScript
                 }
                 else
                     Silence_Timer -= diff;
+
+                //Rend_Timer
+                if (Rend_Timer <= diff)
+                {
+                    DoCastVictim(SPELL_REND);
+                    Rend_Timer = 4000;
+                }
+                else
+                    Rend_Timer -= diff;
 
                 //PsychicBlow_Timer
                 if (PsychicBlow_Timer <= diff)
@@ -1286,7 +1297,7 @@ class npc_kael_flamestrike : public CreatureScript
                         DoCast(me, SPELL_FLAME_STRIKE_DMG);
                     }
                     else
-                        me->Kill(me);
+                        me->KillSelf();
 
                     KillSelf = true;
                     Timer = 1000;
@@ -1464,7 +1475,7 @@ class spell_kael_gravity_lapse : public SpellScriptLoader
             {
                 OnEffectHitTarget += SpellEffectFn(spell_kael_gravity_lapse_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
             }
-            
+
             private:
                  uint8 _targetCount;
         };

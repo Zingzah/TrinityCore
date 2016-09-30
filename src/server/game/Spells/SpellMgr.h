@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -22,7 +22,6 @@
 // For static or at-server-startup loaded spell data
 
 #include "Define.h"
-#include "DBCStructure.h"
 #include "SharedDefines.h"
 #include "Util.h"
 
@@ -36,6 +35,22 @@ class Player;
 class Unit;
 class ProcEventInfo;
 struct SkillLineAbilityEntry;
+struct SpellEntry;
+struct SpellAuraOptionsEntry;
+struct SpellAuraRestrictionsEntry;
+struct SpellCastingRequirementsEntry;
+struct SpellCategoriesEntry;
+struct SpellClassOptionsEntry;
+struct SpellCooldownsEntry;
+struct SpellEquippedItemsEntry;
+struct SpellInterruptsEntry;
+struct SpellLevelsEntry;
+struct SpellMiscEntry;
+struct SpellReagentsEntry;
+struct SpellScalingEntry;
+struct SpellShapeshiftEntry;
+struct SpellTargetRestrictionsEntry;
+struct SpellTotemsEntry;
 
 // only used in code
 enum SpellCategories
@@ -430,7 +445,7 @@ enum EffectRadiusIndex
 };
 
 // Spell pet auras
-class PetAura
+class TC_GAME_API PetAura
 {
     private:
         typedef std::unordered_map<uint32, uint32> PetAuraMap;
@@ -477,7 +492,7 @@ class PetAura
 };
 typedef std::map<uint32, PetAura> SpellPetAuraMap;
 
-struct SpellArea
+struct TC_GAME_API SpellArea
 {
     uint32 spellId;
     uint32 areaId;                                          // zone/subzone/or 0 is not limited to zone
@@ -590,14 +605,35 @@ inline bool IsProfessionOrRidingSkill(uint32 skill)
 bool IsPartOfSkillLine(uint32 skillId, uint32 spellId);
 
 // spell diminishing returns
-DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellInfo const* spellproto);
-DiminishingReturnsType GetDiminishingReturnsGroupType(DiminishingGroup group);
-DiminishingLevels GetDiminishingReturnsMaxLevel(DiminishingGroup group);
-int32 GetDiminishingReturnsLimitDuration(SpellInfo const* spellproto);
+TC_GAME_API DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellInfo const* spellproto);
+TC_GAME_API DiminishingReturnsType GetDiminishingReturnsGroupType(DiminishingGroup group);
+TC_GAME_API DiminishingLevels GetDiminishingReturnsMaxLevel(DiminishingGroup group);
+TC_GAME_API int32 GetDiminishingReturnsLimitDuration(SpellInfo const* spellproto);
 
-extern PetFamilySpellsStore                         sPetFamilySpellsStore;
+TC_GAME_API extern PetFamilySpellsStore                         sPetFamilySpellsStore;
 
-class SpellMgr
+struct SpellInfoLoadHelper
+{
+    SpellEntry const* Entry = nullptr;
+
+    SpellAuraOptionsEntry const* AuraOptions = nullptr;
+    SpellAuraRestrictionsEntry const* AuraRestrictions = nullptr;
+    SpellCastingRequirementsEntry const* CastingRequirements = nullptr;
+    SpellCategoriesEntry const* Categories = nullptr;
+    SpellClassOptionsEntry const* ClassOptions = nullptr;
+    SpellCooldownsEntry const* Cooldowns = nullptr;
+    SpellEquippedItemsEntry const* EquippedItems = nullptr;
+    SpellInterruptsEntry const* Interrupts = nullptr;
+    SpellLevelsEntry const* Levels = nullptr;
+    SpellMiscEntry const* Misc = nullptr;
+    SpellReagentsEntry const* Reagents = nullptr;
+    SpellScalingEntry const* Scaling = nullptr;
+    SpellShapeshiftEntry const* Shapeshift = nullptr;
+    SpellTargetRestrictionsEntry const* TargetRestrictions = nullptr;
+    SpellTotemsEntry const* Totems = nullptr;
+};
+
+class TC_GAME_API SpellMgr
 {
     // Constructors
     private:
@@ -606,11 +642,7 @@ class SpellMgr
 
     // Accessors (const or static functions)
     public:
-        static SpellMgr* instance()
-        {
-            static SpellMgr instance;
-            return &instance;
-        }
+        static SpellMgr* instance();
 
         // Spell correctness for client using
         static bool IsSpellValid(SpellInfo const* spellInfo, Player* player = NULL, bool msg = true);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -42,10 +42,31 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Reputation::ForcedReactio
 
 WorldPacket const* WorldPackets::Reputation::SetForcedReactions::Write()
 {
-    _worldPacket.WriteBits(Reactions.size(), 6);
+    _worldPacket << uint32(Reactions.size());
     for (ForcedReaction const& reaction : Reactions)
         _worldPacket << reaction;
 
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Reputation::FactionStandingData const& factionStanding)
+{
+    data << int32(factionStanding.Index);
+    data << int32(factionStanding.Standing);
+    return data;
+}
+
+WorldPacket const* WorldPackets::Reputation::SetFactionStanding::Write()
+{
+    _worldPacket << float(ReferAFriendBonus);
+    _worldPacket << float(BonusFromAchievementSystem);
+    _worldPacket << uint32(Faction.size());
+    for (FactionStandingData const& factionStanding : Faction)
+        _worldPacket << factionStanding;
+
+    _worldPacket.WriteBit(ShowVisual);
     _worldPacket.FlushBits();
 
     return &_worldPacket;

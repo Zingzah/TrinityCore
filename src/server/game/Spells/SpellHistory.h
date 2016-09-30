@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -39,7 +39,7 @@ enum SpellCooldownFlags
     SPELL_COOLDOWN_FLAG_INCLUDE_EVENT_COOLDOWNS = 0x2   ///< Starts GCD for spells that should start their cooldown on events, requires SPELL_COOLDOWN_FLAG_INCLUDE_GCD set
 };
 
-class SpellHistory
+class TC_GAME_API SpellHistory
 {
 public:
     typedef std::chrono::system_clock Clock;
@@ -81,7 +81,7 @@ public:
 
     void HandleCooldowns(SpellInfo const* spellInfo, Item const* item, Spell* spell = nullptr);
     void HandleCooldowns(SpellInfo const* spellInfo, uint32 itemID, Spell* spell = nullptr);
-    bool IsReady(SpellInfo const* spellInfo, uint32 itemId = 0) const;
+    bool IsReady(SpellInfo const* spellInfo, uint32 itemId = 0, bool ignoreCategoryCooldown = false) const;
     template<class PacketType>
     void WritePacket(PacketType* packet) const;
 
@@ -123,8 +123,8 @@ public:
     }
 
     void ResetAllCooldowns();
-    bool HasCooldown(SpellInfo const* spellInfo, uint32 itemId = 0) const;
-    bool HasCooldown(uint32 spellId, uint32 itemId = 0) const;
+    bool HasCooldown(SpellInfo const* spellInfo, uint32 itemId = 0, bool ignoreCategoryCooldown = false) const;
+    bool HasCooldown(uint32 spellId, uint32 itemId = 0, bool ignoreCategoryCooldown = false) const;
     uint32 GetRemainingCooldown(SpellInfo const* spellInfo) const;
 
     // School lockouts
@@ -132,13 +132,13 @@ public:
     bool IsSchoolLocked(SpellSchoolMask schoolMask) const;
 
     // Charges
-    bool ConsumeCharge(SpellCategoryEntry const* chargeCategoryEntry);
-    void RestoreCharge(SpellCategoryEntry const* chargeCategoryEntry);
-    void ResetCharges(SpellCategoryEntry const* chargeCategoryEntry);
+    bool ConsumeCharge(uint32 chargeCategoryId);
+    void RestoreCharge(uint32 chargeCategoryId);
+    void ResetCharges(uint32 chargeCategoryId);
     void ResetAllCharges();
-    bool HasCharge(SpellCategoryEntry const* chargeCategoryEntry) const;
-    int32 GetMaxCharges(SpellCategoryEntry const* chargeCategoryEntry) const;
-    int32 GetChargeRecoveryTime(SpellCategoryEntry const* chargeCategoryEntry) const;
+    bool HasCharge(uint32 chargeCategoryId) const;
+    int32 GetMaxCharges(uint32 chargeCategoryId) const;
+    int32 GetChargeRecoveryTime(uint32 chargeCategoryId) const;
 
     // Global cooldown
     bool HasGlobalCooldown(SpellInfo const* spellInfo) const;

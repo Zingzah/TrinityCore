@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -26,7 +26,7 @@
 #include "GameObject.h"
 #include "CreatureAI.h"
 
-class GameObjectAI
+class TC_GAME_API GameObjectAI
 {
     protected:
         GameObject* const go;
@@ -47,7 +47,7 @@ class GameObjectAI
 
         static int Permissible(GameObject const* go);
 
-        virtual bool GossipHello(Player* /*player*/) { return false; }
+        virtual bool GossipHello(Player* /*player*/, bool /*isUse*/) { return false; }
         virtual bool GossipSelect(Player* /*player*/, uint32 /*sender*/, uint32 /*action*/) { return false; }
         virtual bool GossipSelectCode(Player* /*player*/, uint32 /*sender*/, uint32 /*action*/, char const* /*code*/) { return false; }
         virtual bool QuestAccept(Player* /*player*/, Quest const* /*quest*/) { return false; }
@@ -63,7 +63,7 @@ class GameObjectAI
         virtual void EventInform(uint32 /*eventId*/) { }
 };
 
-class NullGameObjectAI : public GameObjectAI
+class TC_GAME_API NullGameObjectAI : public GameObjectAI
 {
     public:
         explicit NullGameObjectAI(GameObject* g);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -92,8 +92,8 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::GuildFinder::LFGuildAppli
 
 WorldPacket const* WorldPackets::GuildFinder::LFGuildApplications::Write()
 {
-    _worldPacket << uint32(Application.size());
     _worldPacket << int32(NumRemaining);
+    _worldPacket << uint32(Application.size());
     for (LFGuildApplicationData const& application : Application)
         _worldPacket << application;
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2012-2014 Arctium Emulation <http://arctium.org>
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,16 +29,14 @@ namespace Connection_Patcher
         {
             struct x86
             {
-                static const std::vector<unsigned char> BNet     () { return { 0x8B, 0x75, 0x08, 0x8D, 0x78, 0x0C }; }
-                static const std::vector<unsigned char> Password () { return { 0x74, 0x89, 0x8B, 0x16, 0x8B, 0x42, 0x04 }; }
-                static const std::vector<unsigned char> Signature() { return { 0xE8, 0x00, 0x00, 0x00, 0x00, 0x84, 0xC0, 0x75, 0x5F, 0x33, 0xC0 }; }
+                static const std::vector<unsigned char> CertBundleCASCLocalFile() { return{ 0x6A, 0x00, 0x50, 0x8D, 0x45, 0xF8, 0x50, 0x68 }; }
+                static const std::vector<unsigned char> CertBundleSignatureCheck() { return{ 0x59, 0x59, 0x84, 0xC0, 0x75, 0x08, 0x46, 0x83, 0xFE, 0x02 }; }
             };
 
             struct x64
             {
-                static const std::vector<unsigned char> BNet     () { return { 0x8B, 0x02, 0x89, 0x41, 0x0C, 0x48, 0x8B, 0xC1, 0xC3 }; }
-                static const std::vector<unsigned char> Password () { return { 0x74, 0x84, 0x48, 0x8B, 0x03 }; }
-                static const std::vector<unsigned char> Signature() { return { 0xE8, 0x00, 0x00, 0x00, 0x00, 0x84, 0xC0, 0x0F, 0x85, 0x88, 0x00, 0x00, 0x00, 0x45, 0x33, 0xC0 }; }
+                static const std::vector<unsigned char> CertBundleCASCLocalFile() { return{ 0x45, 0x33, 0xC9, 0x48, 0x89, 0x45, 0x90 }; }
+                static const std::vector<unsigned char> CertBundleSignatureCheck() { return{ 0x75, 0x19, 0x48, 0xFF, 0xC3, 0x48, 0x83, 0xFB, 0x02 }; }
             };
         };
     }

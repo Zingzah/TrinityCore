@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -287,7 +287,7 @@ void Battlefield::InitStalker(uint32 entry, Position const& pos)
     if (Creature* creature = SpawnCreature(entry, pos, TEAM_NEUTRAL))
         StalkerGuid = creature->GetGUID();
     else
-        TC_LOG_ERROR("bg.battlefield", "Battlefield::InitStalker: could not spawn Stalker (Creature entry %u), zone messeges will be un-available", entry);
+        TC_LOG_ERROR("bg.battlefield", "Battlefield::InitStalker: Could not spawn Stalker (Creature entry %u), zone messages will be unavailable!", entry);
 }
 
 void Battlefield::KickAfkPlayers()
@@ -560,10 +560,10 @@ BfGraveyard* Battlefield::GetGraveyardById(uint32 id) const
         if (BfGraveyard* graveyard = m_GraveyardList.at(id))
             return graveyard;
         else
-            TC_LOG_ERROR("bg.battlefield", "Battlefield::GetGraveyardById Id:%u not existed", id);
+            TC_LOG_ERROR("bg.battlefield", "Battlefield::GetGraveyardById Id:%u does not exist.", id);
     }
     else
-        TC_LOG_ERROR("bg.battlefield", "Battlefield::GetGraveyardById Id:%u cant be found", id);
+        TC_LOG_ERROR("bg.battlefield", "Battlefield::GetGraveyardById Id:%u could not be found.", id);
 
     return NULL;
 }
@@ -624,13 +624,12 @@ void Battlefield::RemovePlayerFromResurrectQueue(ObjectGuid playerGuid)
     }
 }
 
-void Battlefield::SendAreaSpiritHealerQueryOpcode(Player* player, ObjectGuid guid)
+void Battlefield::SendAreaSpiritHealerQueryOpcode(Player* player, ObjectGuid const& guid)
 {
-    WorldPacket data(SMSG_AREA_SPIRIT_HEALER_TIME, 12);
-    uint32 time = m_LastResurrectTimer;  // resurrect every 30 seconds
-
-    data << guid << time;
-    player->SendDirectMessage(&data);
+    WorldPackets::Battleground::AreaSpiritHealerTime areaSpiritHealerTime;
+    areaSpiritHealerTime.HealerGuid = guid;
+    areaSpiritHealerTime.TimeLeft = m_LastResurrectTimer;
+    player->SendDirectMessage(areaSpiritHealerTime.Write());
 }
 
 // ----------------------
@@ -781,7 +780,7 @@ Creature* Battlefield::SpawnCreature(uint32 entry, float x, float y, float z, fl
     Map* map = sMapMgr->CreateBaseMap(m_MapId);
     if (!map)
     {
-        TC_LOG_ERROR("bg.battlefield", "Battlefield::SpawnCreature: Can't create creature entry: %u map not found", entry);
+        TC_LOG_ERROR("bg.battlefield", "Battlefield::SpawnCreature: Can't create creature entry: %u, map not found.", entry);
         return nullptr;
     }
 
@@ -829,9 +828,9 @@ GameObject* Battlefield::SpawnGameObject(uint32 entry, float x, float y, float z
 
     // Create gameobject
     GameObject* go = new GameObject;
-    if (!go->Create(map->GenerateLowGuid<HighGuid::GameObject>(), entry, map, PHASEMASK_NORMAL, x, y, z, o, 0, 0, 0, 0, 100, GO_STATE_READY))
+    if (!go->Create(entry, map, PHASEMASK_NORMAL, x, y, z, o, 0, 0, 0, 0, 100, GO_STATE_READY))
     {
-        TC_LOG_ERROR("bg.battlefield", "Battlefield::SpawnGameObject: Cannot create gameobject template %u! Battlefield not created!", entry);
+        TC_LOG_ERROR("bg.battlefield", "Battlefield::SpawnGameObject: Could not create gameobject template %u! Battlefield has not been created!", entry);
         delete go;
         return nullptr;
     }
@@ -933,7 +932,7 @@ bool BfCapturePoint::SetCapturePointData(GameObject* capturePoint)
     GameObjectTemplate const* goinfo = capturePoint->GetGOInfo();
     if (goinfo->type != GAMEOBJECT_TYPE_CONTROL_ZONE)
     {
-        TC_LOG_ERROR("misc", "OutdoorPvP: GO %u is not capture point!", capturePoint->GetEntry());
+        TC_LOG_ERROR("misc", "OutdoorPvP: GO %u is not a capture point!", capturePoint->GetEntry());
         return false;
     }
 

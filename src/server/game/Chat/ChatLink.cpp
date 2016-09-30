@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,7 +19,6 @@
 #include "SpellMgr.h"
 #include "ObjectMgr.h"
 #include "SpellInfo.h"
-#include "DBCStores.h"
 #include "AchievementMgr.h"
 
 // Supported shift-links (client generated and server side)
@@ -124,7 +123,7 @@ bool ItemChatLink::Initialize(std::istringstream& iss)
 
     // Validate item's color
     uint32 colorQuality = _item->GetQuality();
-    if (_item->GetFlags3() & ITEM_FLAG3_HEIRLOOM_QUALITY)
+    if (_item->GetFlags3() & ITEM_FLAG3_DISPLAY_AS_HEIRLOOM)
         colorQuality = ITEM_QUALITY_HEIRLOOM;
 
     if (_color != ItemQualityColors[colorQuality])
@@ -230,6 +229,9 @@ bool ItemChatLink::ValidateName(char* buffer, const char* context)
     {
         for (uint8 index = LOCALE_koKR; index < TOTAL_LOCALES; ++index)
         {
+            if (index == LOCALE_none)
+                continue;
+
             if (FormatName(index, suffixStrings) == buffer)
             {
                 res = true;
@@ -345,18 +347,23 @@ bool SpellChatLink::ValidateName(char* buffer, const char* context)
             return false;
         }
 
-        uint32 skillLineNameLength = strlen(skillLine->DisplayName_lang);
-        if (skillLineNameLength > 0 && strncmp(skillLine->DisplayName_lang, buffer, skillLineNameLength) == 0)
+        for (uint8 i = 0; i < TOTAL_LOCALES; ++i)
         {
-            // found the prefix, remove it to perform spellname validation below
-            // -2 = strlen(": ")
-            uint32 spellNameLength = strlen(buffer) - skillLineNameLength - 2;
-            memmove(buffer, buffer + skillLineNameLength + 2, spellNameLength + 1);
+            uint32 skillLineNameLength = strlen(skillLine->DisplayName->Str[i]);
+            if (skillLineNameLength > 0 && strncmp(skillLine->DisplayName->Str[i], buffer, skillLineNameLength) == 0)
+            {
+                // found the prefix, remove it to perform spellname validation below
+                // -2 = strlen(": ")
+                uint32 spellNameLength = strlen(buffer) - skillLineNameLength - 2;
+                memmove(buffer, buffer + skillLineNameLength + 2, spellNameLength + 1);
+                break;
+            }
         }
     }
 
-    if (*_spell->SpellName && strcmp(_spell->SpellName, buffer) == 0)
-        return true;
+    for (uint8 i = 0; i < TOTAL_LOCALES; ++i)
+        if (*_spell->SpellName->Str[i] && strcmp(_spell->SpellName->Str[i], buffer) == 0)
+            return true;
 
     TC_LOG_TRACE("chat.system", "ChatHandler::isValidChatMessage('%s'): linked spell (id: %u) name wasn't found in any localization", context, _spell->Id);
     return false;
@@ -376,7 +383,7 @@ bool AchievementChatLink::Initialize(std::istringstream& iss)
         return false;
     }
     // Validate achievement
-    _achievement = sAchievementMgr->GetAchievement(achievementId);
+    _achievement = sAchievementStore.LookupEntry(achievementId);
     if (!_achievement)
     {
         TC_LOG_TRACE("chat.system", "ChatHandler::isValidChatMessage('%s'): got invalid achivement id %u in |achievement command", iss.str().c_str(), achievementId);
@@ -412,8 +419,13 @@ bool AchievementChatLink::ValidateName(char* buffer, const char* context)
     ChatLink::ValidateName(buffer, context);
 
     for (uint8 locale = LOCALE_enUS; locale < TOTAL_LOCALES; ++locale)
+    {
+        if (locale == LOCALE_none)
+            continue;
+
         if (strcmp(_achievement->Title->Str[locale], buffer) == 0)
             return true;
+    }
 
     TC_LOG_TRACE("chat.system", "ChatHandler::isValidChatMessage('%s'): linked achievement (id: %u) name wasn't found in any localization", context, _achievement->ID);
     return false;

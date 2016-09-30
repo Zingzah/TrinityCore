@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -80,8 +80,8 @@ bool BattlefieldWG::SetupBattlefield()
     if ((sWorld->getWorldState(BATTLEFIELD_WG_WORLD_STATE_ACTIVE) == 0) && (sWorld->getWorldState(BATTLEFIELD_WG_WORLD_STATE_DEFENDER) == 0)
             && (sWorld->getWorldState(ClockWorldState[0]) == 0))
     {
-        sWorld->setWorldState(BATTLEFIELD_WG_WORLD_STATE_ACTIVE, uint64(false));
-        sWorld->setWorldState(BATTLEFIELD_WG_WORLD_STATE_DEFENDER, uint64(urand(0, 1)));
+        sWorld->setWorldState(BATTLEFIELD_WG_WORLD_STATE_ACTIVE, 0);
+        sWorld->setWorldState(BATTLEFIELD_WG_WORLD_STATE_DEFENDER, urand(0, 1));
         sWorld->setWorldState(ClockWorldState[0], uint64(m_NoWarBattleTime));
     }
 
@@ -414,7 +414,7 @@ void BattlefieldWG::OnBattleEnd(bool endByTimer)
 // *******************************************************
 void BattlefieldWG::DoCompleteOrIncrementAchievement(uint32 achievement, Player* player, uint8 /*incrementNumber*/)
 {
-    AchievementEntry const* achievementEntry = sAchievementMgr->GetAchievement(achievement);
+    AchievementEntry const* achievementEntry = sAchievementStore.LookupEntry(achievement);
 
     if (!achievementEntry)
         return;
@@ -423,7 +423,7 @@ void BattlefieldWG::DoCompleteOrIncrementAchievement(uint32 achievement, Player*
     {
         case ACHIEVEMENTS_WIN_WG_100:
         {
-            // player->UpdateAchievementCriteria();
+            // player->UpdateCriteria();
         }
         default:
         {

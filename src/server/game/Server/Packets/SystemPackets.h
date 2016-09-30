@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -69,8 +69,8 @@ namespace WorldPackets
             uint32 CfgRealmID                            = 0;
             uint8 ComplaintStatus                        = 0;
             int32 CfgRealmRecID                          = 0;
-            int32 UnkInt27                               = 0;
-            int32 TwitterMsTillCanPost                   = 0;
+            int32 TwitterPostThrottleLimit               = 0; ///< Number of twitter posts the client can send before they start being throttled
+            int32 TwitterPostThrottleCooldown            = 0; ///< Time in seconds the client has to wait before posting again after hitting post limit
             int32 TokenPollTimeSeconds                   = 0;
             int32 TokenRedeemIndex                       = 0;
             bool ItemRestorationButtonEnabled        = false;
@@ -84,7 +84,9 @@ namespace WorldPackets
             bool RestrictedAccount                   = false;
             bool TutorialsEnabled                    = false;
             bool NPETutorialsEnabled                 = false;
-            bool UnkBit61                            = false;
+            bool KioskModeEnabled                    = false;
+
+            Optional<std::vector<uint8>> RaceClassExpansionLevels;
         };
 
         class FeatureSystemStatusGlueScreen final : public ServerPacket
@@ -101,7 +103,9 @@ namespace WorldPackets
             bool CommerceSystemEnabled               = false; // NYI
             bool Unk14                               = false; // NYI
             bool WillKickFromWorld                   = false; // NYI
-            bool IsExpansionPreorderInStore          = false;
+            bool IsExpansionPreorderInStore          = false; // NYI
+            bool KioskModeEnabled                    = false; // NYI
+            bool TrialBoostEnabled                   = false; // NYI
             int32 TokenPollTimeSeconds               = 0;     // NYI
             int32 TokenRedeemIndex                   = 0;     // NYI
         };

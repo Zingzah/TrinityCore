@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -61,6 +61,7 @@ namespace WorldPackets
             int32 QuestType     = 0;
             int32 QuestLevel    = 0;
             bool Repeatable     = false;
+            bool Ignored        = false;
             std::string QuestTitle;
             int32 QuestFlags[2] = { };
         };
@@ -107,7 +108,7 @@ namespace WorldPackets
             int32 Type                      = 0;
             WorldPackets::Item::ItemInstance Item;
             int32 Quantity                  = -1;
-            int32 Price                     = 0;
+            uint64 Price                    = 0;
             int32 Durability                = 0;
             int32 StackCount                = 0;
             int32 ExtendedCostID            = 0;
@@ -172,21 +173,10 @@ namespace WorldPackets
             ObjectGuid Vendor;
         };
 
-        class SuppressNPCGreetings final : public ServerPacket
-        {
-        public:
-            SuppressNPCGreetings() : ServerPacket(SMSG_SUPPRESS_NPC_GREETINGS, 16 + 1) { }
-
-            WorldPacket const* Write() override;
-
-            ObjectGuid UnitGUID;
-            bool SuppressNPCGreeting = false;
-        };
-
         class GossipPOI final : public ServerPacket
         {
         public:
-            GossipPOI() : ServerPacket(SMSG_GOSSIP_POI, 2 + 2 * 4 + 4 + 4 + 1) { }
+            GossipPOI() : ServerPacket(SMSG_GOSSIP_POI, 2 + 4 + 4 + 4 + 4) { }
 
             WorldPacket const* Write() override;
 
@@ -207,7 +197,7 @@ namespace WorldPackets
             ObjectGuid Healer;
         };
 
-        class SpiritHealerConfirm final : public ServerPacket
+        class TC_GAME_API SpiritHealerConfirm final : public ServerPacket
         {
         public:
             SpiritHealerConfirm() : ServerPacket(SMSG_SPIRIT_HEALER_CONFIRM, 16) { }
@@ -239,6 +229,16 @@ namespace WorldPackets
             ObjectGuid TrainerGUID;
             int32 SpellID               = 0;
             int32 TrainerFailedReason   = 0;
+        };
+
+        class RequestStabledPets final : public ClientPacket
+        {
+        public:
+            RequestStabledPets(WorldPacket&& packet) : ClientPacket(CMSG_REQUEST_STABLED_PETS, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid StableMaster;
         };
     }
 }

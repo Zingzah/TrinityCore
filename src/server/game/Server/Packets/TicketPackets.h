@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -190,6 +190,36 @@ namespace WorldPackets
             Optional<SupportTicketGuildInfo> GuildInfo;
             Optional<SupportTicketLFGListSearchResult> LFGListSearchResult;
             Optional<SupportTicketLFGListApplicant> LFGListApplicant;
+
+        };
+
+        class Complaint final : public ClientPacket
+        {
+        public:
+            struct ComplaintOffender
+            {
+                ObjectGuid PlayerGuid;
+                uint32 RealmAddress = 0;
+                uint32 TimeSinceOffence = 0;
+            };
+
+            struct ComplaintChat
+            {
+                uint32 Command = 0;
+                uint32 ChannelID = 0;
+                std::string MessageLog;
+            };
+
+            Complaint(WorldPacket&& packet) : ClientPacket(CMSG_COMPLAINT, std::move(packet)) { }
+
+            void Read() override;
+
+            uint8 ComplaintType = 0;
+            ComplaintOffender Offender;
+            uint32 MailID = 0;
+            ComplaintChat Chat;
+            ObjectGuid EventGuid;
+            ObjectGuid InviteGuid;
 
         };
 

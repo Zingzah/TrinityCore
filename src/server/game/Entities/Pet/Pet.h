@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -32,12 +32,18 @@ struct PetSpell
     PetSpellType type;
 };
 
+enum PetStableinfo
+{
+    PET_STABLE_ACTIVE = 1,
+    PET_STABLE_INACTIVE = 2
+};
+
 typedef std::unordered_map<uint32, PetSpell> PetSpellMap;
 typedef std::vector<uint32> AutoSpellList;
 
 class Player;
 
-class Pet : public Guardian
+class TC_GAME_API Pet : public Guardian
 {
     public:
         explicit Pet(Player* owner, PetType type = MAX_PET_TYPE);
@@ -113,26 +119,24 @@ class Pet : public Guardian
 
         bool addSpell(uint32 spellId, ActiveStates active = ACT_DECIDE, PetSpellState state = PETSPELL_NEW, PetSpellType type = PETSPELL_NORMAL);
         bool learnSpell(uint32 spell_id);
+        void learnSpells(std::vector<uint32> const& spellIds);
         void learnSpellHighRank(uint32 spellid);
         void InitLevelupSpellsForLevel();
         bool unlearnSpell(uint32 spell_id, bool learn_prev, bool clear_ab = true);
+        void unlearnSpells(std::vector<uint32> const& spellIds, bool learn_prev, bool clear_ab = true);
         bool removeSpell(uint32 spell_id, bool learn_prev, bool clear_ab = true);
         void CleanupActionBar();
+        std::string GenerateActionBarData() const;
 
         PetSpellMap     m_spells;
         AutoSpellList   m_autospells;
 
         void InitPetCreateSpells();
 
-        bool resetTalents();
-        static void resetTalentsForAllPetsOf(Player* owner, Pet* online_pet = nullptr);
-        void InitTalentForLevel();
-
-        uint8 GetMaxTalentPointsForLevel(uint8 level) const;
-        uint8 GetFreeTalentPoints() const { return GetByteValue(UNIT_FIELD_BYTES_1, 1); }
-        void SetFreeTalentPoints(uint8 points) { SetByteValue(UNIT_FIELD_BYTES_1, 1, points); }
-
-        uint32  m_usedTalentCount;
+        uint16 GetSpecialization() { return m_petSpecialization; }
+        void SetSpecialization(uint16 spec);
+        void LearnSpecializationSpells();
+        void RemoveSpecializationSpells(bool clearActionBar);
 
         uint32 GetGroupUpdateFlag() const { return m_groupUpdateMask; }
         void SetGroupUpdateFlag(uint32 flag);
@@ -148,10 +152,12 @@ class Pet : public Guardian
         PetType m_petType;
         int32   m_duration;                                 // time until unsummon (used mostly for summoned guardians and not used for controlled pets)
         bool    m_loading;
-        uint32  m_regenTimer;
+        uint32  m_focusRegenTimer;
         uint32  m_groupUpdateMask;
 
         DeclinedName *m_declinedname;
+
+        uint16 m_petSpecialization;
 
     private:
         void SaveToDB(uint32, uint32, uint32) override               // override of Creature::SaveToDB     - must not be called

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -21,7 +21,6 @@
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "Util.h"
-#include "DBCStores.h"
 
 #include <list>
 #include <vector>
@@ -130,7 +129,7 @@ uint32 GenerateEnchSuffixFactor(uint32 item_id)
     return GetRandomPropertyPoints(itemProto->GetBaseItemLevel(), itemProto->GetQuality(), itemProto->GetInventoryType(), itemProto->GetSubClass());
 }
 
-uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventoryType, uint32 subClass)
+TC_GAME_API uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventoryType, uint32 subClass)
 {
     uint32 propIndex;
 
@@ -178,7 +177,7 @@ uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventor
             return 0;
     }
 
-    RandomPropertiesPointsEntry const* randPropPointsEntry = sRandomPropertiesPointsStore.LookupEntry(itemLevel);
+    RandPropPointsEntry const* randPropPointsEntry = sRandPropPointsStore.LookupEntry(itemLevel);
     if (!randPropPointsEntry)
         return 0;
 
@@ -191,6 +190,7 @@ uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventor
             return randPropPointsEntry->RarePropertiesPoints[propIndex];
         case ITEM_QUALITY_EPIC:
         case ITEM_QUALITY_LEGENDARY:
+        case ITEM_QUALITY_ARTIFACT:
             return randPropPointsEntry->EpicPropertiesPoints[propIndex];
     }
 

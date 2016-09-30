@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,9 +19,8 @@
 #define _SPELLINFO_H
 
 #include "SharedDefines.h"
-#include "Util.h"
-#include "DBCStructure.h"
 #include "DB2Structure.h"
+#include "Util.h"
 #include "Object.h"
 #include "SpellAuraDefines.h"
 
@@ -33,13 +32,8 @@ class SpellInfo;
 class WorldObject;
 class AuraEffect;
 struct SpellChainNode;
-struct SpellTargetPosition;
-struct SpellDurationEntry;
 struct SpellModifier;
-struct SpellRangeEntry;
-struct SpellRadiusEntry;
-struct SpellEntry;
-struct SpellCastTimesEntry;
+struct SpellTargetPosition;
 struct Condition;
 
 enum SpellCastTargetFlags
@@ -187,7 +181,7 @@ enum SpellCustomAttributes
     SPELL_ATTR0_CU_SHARE_DAMAGE                  = 0x00000008,
     SPELL_ATTR0_CU_NO_INITIAL_THREAT             = 0x00000010,
     SPELL_ATTR0_CU_IS_TALENT                     = 0x00000020,
-    SPELL_ATTR0_CU_AURA_CC                       = 0x00000040,
+    SPELL_ATTR0_CU_DONT_BREAK_STEALTH            = 0x00000040,
     SPELL_ATTR0_CU_DIRECT_DAMAGE                 = 0x00000100,
     SPELL_ATTR0_CU_CHARGE                        = 0x00000200,
     SPELL_ATTR0_CU_PICKPOCKET                    = 0x00000400,
@@ -198,13 +192,14 @@ enum SpellCustomAttributes
     SPELL_ATTR0_CU_REQ_TARGET_FACING_CASTER      = 0x00010000,
     SPELL_ATTR0_CU_REQ_CASTER_BEHIND_TARGET      = 0x00020000,
     SPELL_ATTR0_CU_ALLOW_INFLIGHT_TARGET         = 0x00040000,
+    SPELL_ATTR0_CU_NEEDS_AMMO_DATA               = 0x00080000,
 
     SPELL_ATTR0_CU_NEGATIVE                      = SPELL_ATTR0_CU_NEGATIVE_EFF0 | SPELL_ATTR0_CU_NEGATIVE_EFF1 | SPELL_ATTR0_CU_NEGATIVE_EFF2
 };
 
 uint32 GetTargetFlagMask(SpellTargetObjectTypes objType);
 
-class SpellImplicitTargetInfo
+class TC_GAME_API SpellImplicitTargetInfo
 {
 private:
     Targets _target;
@@ -235,7 +230,7 @@ private:
     static StaticData _data[TOTAL_SPELL_TARGETS];
 };
 
-class SpellEffectInfo
+class TC_GAME_API SpellEffectInfo
 {
     SpellInfo const* _spellInfo;
 public:
@@ -276,7 +271,7 @@ public:
                         RealPointsPerLevel(0), BasePoints(0), PointsPerResource(0), Amplitude(0), ChainAmplitude(0),
                         BonusCoefficient(0), MiscValue(0), MiscValueB(0), Mechanic(MECHANIC_NONE), PositionFacing(0),
                         RadiusEntry(NULL), ChainTargets(0), ItemType(0), TriggerSpell(0), BonusCoefficientFromAP(0.0f), ImplicitTargetConditions(NULL) { }
-    SpellEffectInfo(SpellEntry const* spellEntry, SpellInfo const* spellInfo, uint8 effIndex, SpellEffectEntry const* effect);
+    SpellEffectInfo(SpellEffectScalingEntry const* spellEffectScaling, SpellInfo const* spellInfo, uint8 effIndex, SpellEffectEntry const* effect);
 
     bool IsEffect() const;
     bool IsEffect(SpellEffectName effectName) const;
@@ -323,11 +318,13 @@ typedef std::unordered_map<uint32, SpellVisualVector> SpellVisualMap;
 
 typedef std::vector<AuraEffect*> AuraEffectVector;
 
-class SpellInfo
+struct SpellInfoLoadHelper;
+
+class TC_GAME_API SpellInfo
 {
 public:
     uint32 Id;
-    SpellCategoryEntry const* CategoryEntry;
+    uint32 CategoryId;
     uint32 Dispel;
     uint32 Mechanic;
     uint32 Attributes;
@@ -370,27 +367,28 @@ public:
     uint32 ProcFlags;
     uint32 ProcChance;
     uint32 ProcCharges;
+    uint32 ProcCooldown;
+    float ProcBasePPM;
+    std::vector<SpellProcsPerMinuteModEntry const*> ProcPPMMods;
     uint32 MaxLevel;
     uint32 BaseLevel;
     uint32 SpellLevel;
     SpellDurationEntry const* DurationEntry;
     std::vector<SpellPowerEntry const*> PowerCosts;
-    uint32 RuneCostID;
+    uint32 RangeIndex;
     SpellRangeEntry const* RangeEntry;
     float  Speed;
     uint32 StackAmount;
-    uint32 Totem[2];
+    uint32 Totem[MAX_SPELL_TOTEMS];
     int32  Reagent[MAX_SPELL_REAGENTS];
     uint32 ReagentCount[MAX_SPELL_REAGENTS];
     int32  EquippedItemClass;
     int32  EquippedItemSubClassMask;
     int32  EquippedItemInventoryTypeMask;
-    uint32 TotemCategory[2];
-    uint32 SpellVisual[2];
+    uint32 TotemCategory[MAX_SPELL_TOTEMS];
     uint32 SpellIconID;
     uint32 ActiveIconID;
-    char* SpellName;
-    char* Rank;
+    LocalizedString const* SpellName;
     uint32 MaxTargetLevel;
     uint32 MaxAffectedTargets;
     uint32 SpellFamilyName;
@@ -399,32 +397,12 @@ public:
     uint32 PreventionType;
     int32  RequiredAreasID;
     uint32 SchoolMask;
-    SpellCategoryEntry const* ChargeCategoryEntry;
-    uint32 SpellDifficultyId;
-    uint32 SpellScalingId;
-    uint32 SpellAuraOptionsId;
-    uint32 SpellAuraRestrictionsId;
-    uint32 SpellCastingRequirementsId;
-    uint32 SpellCategoriesId;
-    uint32 SpellClassOptionsId;
-    uint32 SpellCooldownsId;
-    uint32 SpellEquippedItemsId;
-    uint32 SpellInterruptsId;
-    uint32 SpellLevelsId;
-    uint32 SpellReagentsId;
-    uint32 SpellShapeshiftId;
-    uint32 SpellTargetRestrictionsId;
-    uint32 SpellTotemsId;
-    uint32 SpellMiscId;
+    uint32 ChargeCategoryId;
     // SpellScalingEntry
     struct ScalingInfo
     {
-        int32 CastTimeMin;
-        int32 CastTimeMax;
-        uint32 CastTimeMaxLevel;
         int32 Class;
-        float NerfFactor;
-        uint32 NerfMaxLevel;
+        uint32 MinScalingLevel;
         uint32 MaxScalingLevel;
         uint32 ScalesFromItemLevel;
     } Scaling;
@@ -432,24 +410,8 @@ public:
     uint32 ExplicitTargetMask;
     SpellChainNode const* ChainEntry;
 
-    // struct access functions
-    SpellTargetRestrictionsEntry const* GetSpellTargetRestrictions() const;
-    SpellAuraOptionsEntry const* GetSpellAuraOptions() const;
-    SpellAuraRestrictionsEntry const* GetSpellAuraRestrictions() const;
-    SpellCastingRequirementsEntry const* GetSpellCastingRequirements() const;
-    SpellCategoriesEntry const* GetSpellCategories() const;
-    SpellClassOptionsEntry const* GetSpellClassOptions() const;
-    SpellCooldownsEntry const* GetSpellCooldowns() const;
-    SpellEquippedItemsEntry const* GetSpellEquippedItems() const;
-    SpellInterruptsEntry const* GetSpellInterrupts() const;
-    SpellLevelsEntry const* GetSpellLevels() const;
-    SpellReagentsEntry const* GetSpellReagents() const;
-    SpellScalingEntry const* GetSpellScaling() const;
-    SpellShapeshiftEntry const* GetSpellShapeshift() const;
-    SpellTotemsEntry const* GetSpellTotems() const;
-    SpellMiscEntry const* GetSpellMisc() const;
-
-    SpellInfo(SpellEntry const* spellEntry, SpellEffectEntryMap const& effectsMap, SpellVisualMap&& visuals);
+    SpellInfo(SpellInfoLoadHelper const& data, SpellEffectEntryMap const& effectsMap, SpellVisualMap&& visuals,
+        std::unordered_map<uint32, SpellEffectScalingEntry const*> const& effectScaling);
     ~SpellInfo();
 
     uint32 GetCategory() const;
@@ -478,11 +440,9 @@ public:
     bool IsExplicitDiscovery() const;
     bool IsLootCrafting() const;
     bool IsQuestTame() const;
-    bool IsProfessionOrRiding(uint32 difficulty = DIFFICULTY_NONE) const;
     bool IsProfession(uint32 difficulty = DIFFICULTY_NONE) const;
     bool IsPrimaryProfession(uint32 difficulty = DIFFICULTY_NONE) const;
     bool IsPrimaryProfessionFirstRank(uint32 difficulty = DIFFICULTY_NONE) const;
-    bool IsAbilityLearnedWithProfession() const;
     bool IsAbilityOfSkillType(uint32 skillType) const;
 
     bool IsAffectingArea(uint32 difficulty) const;
@@ -508,6 +468,7 @@ public:
     bool IsBreakingStealth() const;
     bool IsRangedWeaponSpell() const;
     bool IsAutoRepeatRangedSpell() const;
+    bool HasInitialAggro() const;
 
     bool IsAffectedBySpellMods() const;
     bool IsAffectedBySpellMod(SpellModifier const* mod) const;
@@ -558,6 +519,8 @@ public:
 
     std::vector<CostData> CalcPowerCost(Unit const* caster, SpellSchoolMask schoolMask) const;
 
+    float CalcProcPPM(Unit* caster, int32 itemLevel) const;
+
     bool IsRanked() const;
     uint8 GetRank() const;
     SpellInfo const* GetFirstRankSpell() const;
@@ -569,8 +532,8 @@ public:
     bool IsDifferentRankOf(SpellInfo const* spellInfo) const;
     bool IsHighRankOf(SpellInfo const* spellInfo) const;
 
-    uint32 GetSpellXSpellVisualId(Difficulty difficulty) const;
-    uint32 GetSpellVisual(Difficulty difficulty, Player* forPlayer = nullptr) const;
+    uint32 GetSpellXSpellVisualId(Unit const* caster = nullptr) const;
+    uint32 GetSpellVisual(Unit const* caster = nullptr) const;
 
     // loading helpers
     void _InitializeExplicitTargetMask();

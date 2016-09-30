@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -39,7 +39,6 @@ enum DruidSpells
     SPELL_DRUID_SOLAR_ECLIPSE_MARKER        = 67483, // Will make the yellow arrow on eclipse bar point to the yellow side (solar)
     SPELL_DRUID_SOLAR_ECLIPSE               = 48517,
     SPELL_DRUID_LUNAR_ECLIPSE               = 48518,
-    SPELL_DRUID_ENRAGE_MOD_DAMAGE           = 51185,
     SPELL_DRUID_FERAL_CHARGE_BEAR           = 16979,
     SPELL_DRUID_FERAL_CHARGE_CAT            = 49376,
     SPELL_DRUID_GLYPH_OF_INNERVATE          = 54833,
@@ -49,7 +48,6 @@ enum DruidSpells
     SPELL_DRUID_IDOL_OF_WORSHIP             = 60774,
     SPELL_DRUID_INCREASED_MOONFIRE_DURATION = 38414,
     SPELL_DRUID_ITEM_T8_BALANCE_RELIC       = 64950,
-    SPELL_DRUID_KING_OF_THE_JUNGLE          = 48492,
     SPELL_DRUID_LIFEBLOOM_ENERGIZE          = 64372,
     SPELL_DRUID_LIFEBLOOM_FINAL_HEAL        = 33778,
     SPELL_DRUID_LIVING_SEED_HEAL            = 48503,
@@ -60,8 +58,7 @@ enum DruidSpells
     SPELL_DRUID_SAVAGE_ROAR                 = 62071,
     SPELL_DRUID_STAMPEDE_BAER_RANK_1        = 81016,
     SPELL_DRUID_STAMPEDE_CAT_RANK_1         = 81021,
-    SPELL_DRUID_STAMPEDE_CAT_STATE          = 109881,
-    SPELL_DRUID_TIGER_S_FURY_ENERGIZE       = 51178
+    SPELL_DRUID_STAMPEDE_CAT_STATE          = 109881
 };
 
 // 1850 - Dash
@@ -77,7 +74,7 @@ class spell_dru_dash : public SpellScriptLoader
             void CalculateAmount(AuraEffect const* /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
             {
                 // do not set speed if not in cat form
-                if (GetUnitOwner()->GetShapeshiftForm() != FORM_CAT)
+                if (GetUnitOwner()->GetShapeshiftForm() != FORM_CAT_FORM)
                     amount = 0;
             }
 
@@ -165,7 +162,7 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                 Player* caster = GetCaster()->ToPlayer();
 
                 // No boomy, no deal.
-                if (caster->GetSpecId(caster->GetActiveTalentGroup()) != TALENT_SPEC_DRUID_BALANCE)
+                if (caster->GetUInt32Value(PLAYER_FIELD_CURRENT_SPEC_ID) != TALENT_SPEC_DRUID_BALANCE)
                     return;
 
                 switch (GetSpellInfo()->Id)
@@ -175,7 +172,7 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                         int32 energizeAmount = -GetEffectValue(); // -13
                         // If we are set to fill the lunar side or we've just logged in with 0 power..
                         if ((!caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE_MARKER) && caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE_MARKER))
-                            || caster->GetPower(POWER_ECLIPSE) == 0)
+                            || caster->GetPower(POWER_LUNAR_POWER) == 0)
                         {
                             caster->CastCustomSpell(caster, SPELL_DRUID_ECLIPSE_GENERAL_ENERGIZE, &energizeAmount, 0, 0, true);
                             // If the energize was due to 0 power, cast the eclipse marker aura
@@ -183,7 +180,7 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                                 caster->CastSpell(caster, SPELL_DRUID_LUNAR_ECLIPSE_MARKER, true);
                         }
                         // The energizing effect brought us out of the solar eclipse, remove the aura
-                        if (caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE) && caster->GetPower(POWER_ECLIPSE) <= 0)
+                        if (caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE) && caster->GetPower(POWER_LUNAR_POWER) <= 0)
                             caster->RemoveAurasDueToSpell(SPELL_DRUID_SOLAR_ECLIPSE);
                         break;
                     }
@@ -192,7 +189,7 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                         int32 energizeAmount = GetEffectValue(); // 20
                         // If we are set to fill the solar side or we've just logged in with 0 power..
                         if ((!caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE_MARKER) && caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE_MARKER))
-                            || caster->GetPower(POWER_ECLIPSE) == 0)
+                            || caster->GetPower(POWER_LUNAR_POWER) == 0)
                         {
                             caster->CastCustomSpell(caster, SPELL_DRUID_ECLIPSE_GENERAL_ENERGIZE, &energizeAmount, 0, 0, true);
                             // If the energize was due to 0 power, cast the eclipse marker aura
@@ -200,7 +197,7 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                                 caster->CastSpell(caster, SPELL_DRUID_SOLAR_ECLIPSE_MARKER, true);
                         }
                         // The energizing effect brought us out of the lunar eclipse, remove the aura
-                        if (caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE) && caster->GetPower(POWER_ECLIPSE) >= 0)
+                        if (caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE) && caster->GetPower(POWER_LUNAR_POWER) >= 0)
                             caster->RemoveAura(SPELL_DRUID_LUNAR_ECLIPSE);
                         break;
                     }
@@ -208,7 +205,7 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                     {
                         // If we are set to fill the solar side or we've just logged in with 0 power (confirmed with sniffs)
                         if ((!caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE_MARKER) && caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE_MARKER))
-                            || caster->GetPower(POWER_ECLIPSE) == 0)
+                            || caster->GetPower(POWER_LUNAR_POWER) == 0)
                         {
                             int32 energizeAmount = GetEffectValue(); // 15
                             caster->CastCustomSpell(caster, SPELL_DRUID_STARSURGE_ENERGIZE, &energizeAmount, 0, 0, true);
@@ -223,10 +220,10 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
                             caster->CastCustomSpell(caster, SPELL_DRUID_STARSURGE_ENERGIZE, &energizeAmount, 0, 0, true);
                         }
                         // The energizing effect brought us out of the lunar eclipse, remove the aura
-                        if (caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE) && caster->GetPower(POWER_ECLIPSE) >= 0)
+                        if (caster->HasAura(SPELL_DRUID_LUNAR_ECLIPSE) && caster->GetPower(POWER_LUNAR_POWER) >= 0)
                             caster->RemoveAura(SPELL_DRUID_LUNAR_ECLIPSE);
                         // The energizing effect brought us out of the solar eclipse, remove the aura
-                        else if (caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE) && caster->GetPower(POWER_ECLIPSE) <= 0)
+                        else if (caster->HasAura(SPELL_DRUID_SOLAR_ECLIPSE) && caster->GetPower(POWER_LUNAR_POWER) <= 0)
                             caster->RemoveAura(SPELL_DRUID_SOLAR_ECLIPSE);
                         break;
                     }
@@ -242,42 +239,6 @@ class spell_dru_eclipse_energize : public SpellScriptLoader
         SpellScript* GetSpellScript() const override
         {
             return new spell_dru_eclipse_energize_SpellScript;
-        }
-};
-
-// 5229 - Enrage
-class spell_dru_enrage : public SpellScriptLoader
-{
-    public:
-        spell_dru_enrage() : SpellScriptLoader("spell_dru_enrage") { }
-
-        class spell_dru_enrage_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_dru_enrage_SpellScript);
-
-            bool Validate(SpellInfo const* /*spellInfo*/) override
-            {
-                if (!sSpellMgr->GetSpellInfo(SPELL_DRUID_KING_OF_THE_JUNGLE)
-                    || !sSpellMgr->GetSpellInfo(SPELL_DRUID_ENRAGE_MOD_DAMAGE))
-                    return false;
-                return true;
-            }
-
-            void OnHit()
-            {
-                if (AuraEffect const* aurEff = GetHitUnit()->GetAuraEffectOfRankedSpell(SPELL_DRUID_KING_OF_THE_JUNGLE, EFFECT_0))
-                    GetHitUnit()->CastCustomSpell(SPELL_DRUID_ENRAGE_MOD_DAMAGE, SPELLVALUE_BASE_POINT0, aurEff->GetAmount(), GetHitUnit(), true);
-            }
-
-            void Register() override
-            {
-                AfterHit += SpellHitFn(spell_dru_enrage_SpellScript::OnHit);
-            }
-        };
-
-        SpellScript* GetSpellScript() const override
-        {
-            return new spell_dru_enrage_SpellScript();
         }
 };
 
@@ -718,7 +679,7 @@ class spell_dru_rip : public SpellScriptLoader
                 if (Unit* caster = GetCaster())
                 {
                     // 0.01 * $AP * cp
-                    uint8 cp = caster->ToPlayer()->GetComboPoints();
+                    uint32 cp = caster->ToPlayer()->GetComboPoints();
 
                     // Idol of Feral Shadows. Can't be handled as SpellMod due its dependency from CPs
                     if (AuraEffect const* auraEffIdolOfFeralShadows = caster->GetAuraEffect(SPELL_DRUID_IDOL_OF_FERAL_SHADOWS, EFFECT_0))
@@ -806,7 +767,7 @@ class spell_dru_savage_roar : public SpellScriptLoader
             SpellCastResult CheckCast()
             {
                 Unit* caster = GetCaster();
-                if (caster->GetShapeshiftForm() != FORM_CAT)
+                if (caster->GetShapeshiftForm() != FORM_CAT_FORM)
                     return SPELL_FAILED_ONLY_SHAPESHIFT;
 
                 return SPELL_CAST_OK;
@@ -928,7 +889,7 @@ class spell_dru_stampede : public SpellScriptLoader
             void HandleEffectCatProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
             {
                 PreventDefaultAction();
-                if (GetTarget()->GetShapeshiftForm() != FORM_CAT || eventInfo.GetDamageInfo()->GetSpellInfo()->Id != SPELL_DRUID_FERAL_CHARGE_CAT)
+                if (GetTarget()->GetShapeshiftForm() != FORM_CAT_FORM || eventInfo.GetDamageInfo()->GetSpellInfo()->Id != SPELL_DRUID_FERAL_CHARGE_CAT)
                     return;
 
                 GetTarget()->CastSpell(GetTarget(), sSpellMgr->GetSpellWithRank(SPELL_DRUID_STAMPEDE_CAT_RANK_1, GetSpellInfo()->GetRank()), true, NULL, aurEff);
@@ -938,7 +899,7 @@ class spell_dru_stampede : public SpellScriptLoader
             void HandleEffectBearProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
             {
                 PreventDefaultAction();
-                if (GetTarget()->GetShapeshiftForm() != FORM_BEAR || eventInfo.GetDamageInfo()->GetSpellInfo()->Id != SPELL_DRUID_FERAL_CHARGE_BEAR)
+                if (GetTarget()->GetShapeshiftForm() != FORM_BEAR_FORM || eventInfo.GetDamageInfo()->GetSpellInfo()->Id != SPELL_DRUID_FERAL_CHARGE_BEAR)
                     return;
 
                 GetTarget()->CastSpell(GetTarget(), sSpellMgr->GetSpellWithRank(SPELL_DRUID_STAMPEDE_BAER_RANK_1, GetSpellInfo()->GetRank()), true, NULL, aurEff);
@@ -1057,31 +1018,34 @@ class spell_dru_swift_flight_passive : public SpellScriptLoader
         }
 };
 
-// 5217 - Tiger's Fury
-class spell_dru_tiger_s_fury : public SpellScriptLoader
+// -33943 - Flight Form
+class spell_dru_flight_form : public SpellScriptLoader
 {
     public:
-        spell_dru_tiger_s_fury() : SpellScriptLoader("spell_dru_tiger_s_fury") { }
+        spell_dru_flight_form() : SpellScriptLoader("spell_dru_flight_form") { }
 
-        class spell_dru_tiger_s_fury_SpellScript : public SpellScript
+        class spell_dru_flight_form_SpellScript : public SpellScript
         {
-            PrepareSpellScript(spell_dru_tiger_s_fury_SpellScript);
+            PrepareSpellScript(spell_dru_flight_form_SpellScript);
 
-            void OnHit()
+            SpellCastResult CheckCast()
             {
-                if (AuraEffect const* aurEff = GetHitUnit()->GetAuraEffectOfRankedSpell(SPELL_DRUID_KING_OF_THE_JUNGLE, EFFECT_1))
-                    GetHitUnit()->CastCustomSpell(SPELL_DRUID_TIGER_S_FURY_ENERGIZE, SPELLVALUE_BASE_POINT0, aurEff->GetAmount(), GetHitUnit(), true);
+                Unit* caster = GetCaster();
+                if (caster->IsInDisallowedMountForm())
+                    return SPELL_FAILED_NOT_SHAPESHIFT;
+
+                return SPELL_CAST_OK;
             }
 
             void Register() override
             {
-                AfterHit += SpellHitFn(spell_dru_tiger_s_fury_SpellScript::OnHit);
+                OnCheckCast += SpellCheckCastFn(spell_dru_flight_form_SpellScript::CheckCast);
             }
         };
 
         SpellScript* GetSpellScript() const override
         {
-            return new spell_dru_tiger_s_fury_SpellScript();
+            return new spell_dru_flight_form_SpellScript();
         }
 };
 
@@ -1245,7 +1209,6 @@ void AddSC_druid_spell_scripts()
     new spell_dru_eclipse("spell_dru_eclipse_lunar");
     new spell_dru_eclipse("spell_dru_eclipse_solar");
     new spell_dru_eclipse_energize();
-    new spell_dru_enrage();
     new spell_dru_glyph_of_innervate();
     new spell_dru_glyph_of_starfire();
     new spell_dru_glyph_of_starfire_proc();
@@ -1263,7 +1226,7 @@ void AddSC_druid_spell_scripts()
     new spell_dru_stampede();
     new spell_dru_survival_instincts();
     new spell_dru_swift_flight_passive();
-    new spell_dru_tiger_s_fury();
+    new spell_dru_flight_form();
     new spell_dru_typhoon();
     new spell_dru_t10_restoration_4p_bonus();
     new spell_dru_wild_growth();

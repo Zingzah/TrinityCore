@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -197,6 +197,55 @@ class spell_item_blessing_of_ancient_kings : public SpellScriptLoader
         AuraScript* GetAuraScript() const override
         {
             return new spell_item_blessing_of_ancient_kings_AuraScript();
+        }
+};
+
+// 47770 - Roll Dice
+class spell_item_decahedral_dwarven_dice : public SpellScriptLoader
+{
+    public:
+        spell_item_decahedral_dwarven_dice() : SpellScriptLoader("spell_item_decahedral_dwarven_dice") { }
+
+        class spell_item_decahedral_dwarven_dice_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_item_decahedral_dwarven_dice_SpellScript);
+
+            enum
+            {
+                TEXT_DECAHEDRAL_DWARVEN_DICE = 26147
+            };
+
+            bool Validate(SpellInfo const* /*spellInfo*/) override
+            {
+                if (!sBroadcastTextStore.LookupEntry(TEXT_DECAHEDRAL_DWARVEN_DICE))
+                    return false;
+                return true;
+            }
+
+            bool Load() override
+            {
+                return GetCaster()->GetTypeId() == TYPEID_PLAYER;
+            }
+
+            void HandleScript(SpellEffIndex /*effIndex*/)
+            {
+                GetCaster()->TextEmote(TEXT_DECAHEDRAL_DWARVEN_DICE, GetHitUnit());
+
+                static uint32 const minimum = 1;
+                static uint32 const maximum = 100;
+
+                GetCaster()->ToPlayer()->DoRandomRoll(minimum, maximum);
+            }
+
+            void Register() override
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_item_decahedral_dwarven_dice_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_item_decahedral_dwarven_dice_SpellScript();
         }
 };
 
@@ -1321,6 +1370,57 @@ class spell_item_underbelly_elixir : public SpellScriptLoader
         SpellScript* GetSpellScript() const override
         {
             return new spell_item_underbelly_elixir_SpellScript();
+        }
+};
+
+// 47776 - Roll 'dem Bones
+class spell_item_worn_troll_dice : public SpellScriptLoader
+{
+    public:
+        spell_item_worn_troll_dice() : SpellScriptLoader("spell_item_worn_troll_dice") { }
+
+        class spell_item_worn_troll_dice_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_item_worn_troll_dice_SpellScript);
+
+            enum
+            {
+                TEXT_WORN_TROLL_DICE = 26152
+            };
+
+            bool Validate(SpellInfo const* /*spellInfo*/) override
+            {
+                if (!sBroadcastTextStore.LookupEntry(TEXT_WORN_TROLL_DICE))
+                    return false;
+                return true;
+            }
+
+            bool Load() override
+            {
+                return GetCaster()->GetTypeId() == TYPEID_PLAYER;
+            }
+
+            void HandleScript(SpellEffIndex /*effIndex*/)
+            {
+                GetCaster()->TextEmote(TEXT_WORN_TROLL_DICE, GetHitUnit());
+
+                static uint32 const minimum = 1;
+                static uint32 const maximum = 6;
+
+                // roll twice
+                GetCaster()->ToPlayer()->DoRandomRoll(minimum, maximum);
+                GetCaster()->ToPlayer()->DoRandomRoll(minimum, maximum);
+            }
+
+            void Register() override
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_item_worn_troll_dice_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+            }
+        };
+
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_item_worn_troll_dice_SpellScript();
         }
 };
 
@@ -2515,7 +2615,7 @@ class spell_item_chicken_cover : public SpellScriptLoader
                     if (!target->HasAura(SPELL_CHICKEN_NET) && (caster->GetQuestStatus(QUEST_CHICKEN_PARTY) == QUEST_STATUS_INCOMPLETE || caster->GetQuestStatus(QUEST_FLOWN_THE_COOP) == QUEST_STATUS_INCOMPLETE))
                     {
                         caster->CastSpell(caster, SPELL_CAPTURE_CHICKEN_ESCAPE, true);
-                        target->Kill(target);
+                        target->KillSelf();
                     }
                 }
             }
@@ -2591,6 +2691,117 @@ public:
     }
 };
 
+class spell_item_toy_train_set_pulse : public SpellScriptLoader
+{
+public:
+    spell_item_toy_train_set_pulse() : SpellScriptLoader("spell_item_toy_train_set_pulse") { }
+
+    class spell_item_toy_train_set_pulse_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_item_toy_train_set_pulse_SpellScript);
+
+        void HandleDummy(SpellEffIndex /*index*/)
+        {
+            if (Player* target = GetHitUnit()->ToPlayer())
+            {
+                target->HandleEmoteCommand(EMOTE_ONESHOT_TRAIN);
+                if (EmotesTextSoundEntry const* soundEntry = sDB2Manager.GetTextSoundEmoteFor(TEXT_EMOTE_TRAIN, target->getRace(), target->getGender(), target->getClass()))
+                    target->PlayDistanceSound(soundEntry->SoundId);
+            }
+        }
+
+        void HandleTargets(std::list<WorldObject*>& targetList)
+        {
+            targetList.remove_if([](WorldObject const* obj) { return obj->GetTypeId() != TYPEID_PLAYER; });
+        }
+
+        void Register() override
+        {
+            OnEffectHitTarget += SpellEffectFn(spell_item_toy_train_set_pulse_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+            OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_item_toy_train_set_pulse_SpellScript::HandleTargets, EFFECT_ALL, TARGET_UNIT_SRC_AREA_ALLY);
+        }
+    };
+
+    SpellScript* GetSpellScript() const override
+    {
+        return new spell_item_toy_train_set_pulse_SpellScript();
+    }
+};
+
+class spell_item_artifical_stamina : public SpellScriptLoader
+{
+public:
+    spell_item_artifical_stamina() : SpellScriptLoader("spell_item_artifical_stamina") { }
+
+    class spell_item_artifical_stamina_AuraScript : public AuraScript
+    {
+        PrepareAuraScript(spell_item_artifical_stamina_AuraScript);
+
+        bool Validate(SpellInfo const* spellInfo) override
+        {
+            return spellInfo->GetEffect(EFFECT_1) != nullptr;
+        }
+
+        bool Load() override
+        {
+            return GetOwner()->GetTypeId() == TYPEID_PLAYER;
+        }
+
+        void CalculateAmount(AuraEffect const* /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
+        {
+            if (Item* artifact = GetOwner()->ToPlayer()->GetItemByGuid(GetAura()->GetCastItemGUID()))
+                amount = GetSpellInfo()->GetEffect(EFFECT_1)->BasePoints * std::max(artifact->GetTotalPurchasedArtifactPowers(), 34u) / 100;
+        }
+
+        void Register() override
+        {
+            DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_item_artifical_stamina_AuraScript::CalculateAmount, EFFECT_0, SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE);
+        }
+    };
+
+    AuraScript* GetAuraScript() const override
+    {
+        return new spell_item_artifical_stamina_AuraScript();
+    }
+};
+
+class spell_item_artifical_damage : public SpellScriptLoader
+{
+public:
+    spell_item_artifical_damage() : SpellScriptLoader("spell_item_artifical_damage") { }
+
+    class spell_item_artifical_damage_AuraScript : public AuraScript
+    {
+        PrepareAuraScript(spell_item_artifical_damage_AuraScript);
+
+        bool Validate(SpellInfo const* spellInfo) override
+        {
+            return spellInfo->GetEffect(EFFECT_1) != nullptr;
+        }
+
+        bool Load() override
+        {
+            return GetOwner()->GetTypeId() == TYPEID_PLAYER;
+        }
+
+        void CalculateAmount(AuraEffect const* /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
+        {
+            if (Item* artifact = GetOwner()->ToPlayer()->GetItemByGuid(GetAura()->GetCastItemGUID()))
+                amount = GetSpellInfo()->GetEffect(EFFECT_1)->BasePoints * std::max(artifact->GetTotalPurchasedArtifactPowers(), 34u) / 100;
+        }
+
+        void Register() override
+        {
+            DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_item_artifical_damage_AuraScript::CalculateAmount, EFFECT_0, SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
+        }
+    };
+
+    AuraScript* GetAuraScript() const override
+    {
+        return new spell_item_artifical_damage_AuraScript();
+    }
+};
+
 void AddSC_item_spell_scripts()
 {
     // 23074 Arcanite Dragonling
@@ -2605,6 +2816,7 @@ void AddSC_item_spell_scripts()
     new spell_item_aegis_of_preservation();
     new spell_item_arcane_shroud();
     new spell_item_blessing_of_ancient_kings();
+    new spell_item_decahedral_dwarven_dice();
     new spell_item_defibrillate("spell_item_goblin_jumper_cables", 67, SPELL_GOBLIN_JUMPER_CABLES_FAIL);
     new spell_item_defibrillate("spell_item_goblin_jumper_cables_xl", 50, SPELL_GOBLIN_JUMPER_CABLES_XL_FAIL);
     new spell_item_defibrillate("spell_item_gnomish_army_knife", 33);
@@ -2629,6 +2841,7 @@ void AddSC_item_spell_scripts()
     new spell_item_six_demon_bag();
     new spell_item_the_eye_of_diminution();
     new spell_item_underbelly_elixir();
+    new spell_item_worn_troll_dice();
     new spell_item_red_rider_air_rifle();
 
     new spell_item_create_heart_candy();
@@ -2658,4 +2871,7 @@ void AddSC_item_spell_scripts()
     new spell_item_chicken_cover();
     new spell_item_muisek_vessel();
     new spell_item_greatmothers_soulcatcher();
+    new spell_item_toy_train_set_pulse();
+    new spell_item_artifical_stamina();
+    new spell_item_artifical_damage();
 }

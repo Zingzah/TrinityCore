@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -22,9 +22,11 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "Language.h"
-#include "DBCStructure.h"
 #include "QueryResult.h"
 #include <map>
+
+struct FactionEntry;
+struct FactionTemplateEntry;
 
 static uint32 ReputationRankStrIndex[MAX_REPUTATION_RANK] =
 {
@@ -61,7 +63,7 @@ typedef std::map<uint32, ReputationRank> ForcedReactions;
 
 class Player;
 
-class ReputationMgr
+class TC_GAME_API ReputationMgr
 {
     public:                                                 // constructors and global modifiers
         explicit ReputationMgr(Player* owner) : _player(owner),
@@ -84,10 +86,7 @@ class ReputationMgr
 
         FactionStateList const& GetStateList() const { return _factions; }
 
-        FactionState const* GetState(FactionEntry const* factionEntry) const
-        {
-            return factionEntry->CanHaveReputation() ? GetState(factionEntry->ReputationIndex) : NULL;
-        }
+        FactionState const* GetState(FactionEntry const* factionEntry) const;
 
         FactionState const* GetState(RepListID id) const
         {
@@ -109,9 +108,11 @@ class ReputationMgr
             return ReputationRankStrIndex[GetRank(factionEntry)];
         };
 
-        ReputationRank const* GetForcedRankIfAny(FactionTemplateEntry const* factionTemplateEntry) const
+        ReputationRank const* GetForcedRankIfAny(FactionTemplateEntry const* factionTemplateEntry) const;
+
+        ReputationRank const* GetForcedRankIfAny(uint32 factionId) const
         {
-            ForcedReactions::const_iterator forceItr = _forcedReactions.find(factionTemplateEntry->Faction);
+            ForcedReactions::const_iterator forceItr = _forcedReactions.find(factionId);
             return forceItr != _forcedReactions.end() ? &forceItr->second : NULL;
         }
 

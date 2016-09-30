@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -31,7 +31,7 @@ void WorldSession::HandleAddToy(WorldPackets::Toy::AddToy& packet)
         return;
     }
 
-    if (!sDB2Manager.GetToyItemIdMatch(item->GetEntry()))
+    if (!sDB2Manager.IsToyItem(item->GetEntry()))
         return;
 
     InventoryResult msg = _player->CanUseItem(item);
@@ -51,6 +51,17 @@ void WorldSession::HandleUseToy(WorldPackets::Toy::UseToy& packet)
     if (!item)
         return;
 
+    if (!_collectionMgr->HasToy(packet.ItemID))
+        return;
+
+    auto effect = std::find_if(item->Effects.begin(), item->Effects.end(), [&packet](ItemEffectEntry const* effect)
+    {
+        return uint32(packet.Cast.SpellID) == effect->SpellID;
+    });
+
+    if (effect == item->Effects.end())
+        return;
+
     SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(packet.Cast.SpellID);
     if (!spellInfo)
     {
@@ -64,8 +75,13 @@ void WorldSession::HandleUseToy(WorldPackets::Toy::UseToy& packet)
     SpellCastTargets targets(_player, packet.Cast);
 
     Spell* spell = new Spell(_player, spellInfo, TRIGGERED_NONE, ObjectGuid::Empty, false);
+
+    WorldPackets::Spells::SpellPrepare spellPrepare;
+    spellPrepare.ClientCastID = packet.Cast.CastID;
+    spellPrepare.ServerCastID = spell->m_castId;
+    SendPacket(spellPrepare.Write());
+
     spell->m_castItemEntry = packet.ItemID;
-    spell->m_cast_count = packet.Cast.CastID;
     spell->m_misc.Raw.Data[0] = packet.Cast.Misc[0];
     spell->m_misc.Raw.Data[1] = packet.Cast.Misc[1];
     spell->m_castFlagsEx |= CAST_FLAG_EX_USE_TOY_SPELL;

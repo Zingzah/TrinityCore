@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -22,6 +22,7 @@
 #include <G3D/Vector2.h>
 #include <G3D/Vector3.h>
 #include <sstream>
+#include <array>
 
 inline ByteBuffer& operator<<(ByteBuffer& data, G3D::Vector2 const& v)
 {

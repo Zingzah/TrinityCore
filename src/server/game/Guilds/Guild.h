@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -25,7 +25,6 @@
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
 #include "Player.h"
-#include "DBCStore.h"
 
 class Item;
 
@@ -261,7 +260,7 @@ const uint32 GuildChallengeMaxLevelGoldReward[GUILD_CHALLENGES_TYPES] = { 0, 125
 const uint32 GuildChallengesMaxCount[GUILD_CHALLENGES_TYPES]          = { 0, 7,      1,       3,     0,     3 };
 
 // Emblem info
-class EmblemInfo
+class TC_GAME_API EmblemInfo
 {
 public:
     EmblemInfo() : m_style(0), m_color(0), m_borderStyle(0), m_borderColor(0), m_backgroundColor(0) { }
@@ -317,7 +316,7 @@ typedef std::vector <GuildBankRightsAndSlots> GuildBankRightsAndSlotsVec;
 
 typedef std::set <uint8> SlotIds;
 
-class Guild
+class TC_GAME_API Guild
 {
 private:
     // Class representing guild member
@@ -865,8 +864,8 @@ public:
     // Bank tabs
     void SetBankTabText(uint8 tabId, std::string const& text);
 
-    AchievementMgr<Guild>& GetAchievementMgr() { return m_achievementMgr; }
-    AchievementMgr<Guild> const& GetAchievementMgr() const { return m_achievementMgr; }
+    GuildAchievementMgr& GetAchievementMgr() { return m_achievementMgr; }
+    GuildAchievementMgr const& GetAchievementMgr() const { return m_achievementMgr; }
 
     // Guild leveling
     uint8 GetLevel() const { return _level; }
@@ -877,7 +876,7 @@ public:
     void ResetTimes(bool weekly);
 
     bool HasAchieved(uint32 achievementId) const;
-    void UpdateAchievementCriteria(AchievementCriteriaTypes type, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit* unit, Player* player);
+    void UpdateCriteria(CriteriaTypes type, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, Unit* unit, Player* player);
 
 protected:
     ObjectGuid::LowType m_id;
@@ -899,7 +898,7 @@ protected:
     LogHolder* m_eventLog;
     LogHolder* m_bankEventLog[GUILD_BANK_MAX_TABS + 1];
     LogHolder* m_newsLog;
-    AchievementMgr<Guild> m_achievementMgr;
+    GuildAchievementMgr m_achievementMgr;
 
     uint8 _level;
 

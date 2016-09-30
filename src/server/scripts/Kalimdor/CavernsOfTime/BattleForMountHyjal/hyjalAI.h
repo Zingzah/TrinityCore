@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -123,7 +123,7 @@ struct hyjalAI : public npc_escortAI
 
     void Reset() override;                                  // Generically used to reset our variables. Do *not* call in EnterEvadeMode as this may make problems if the raid is still in combat
 
-    void EnterEvadeMode() override;                         // Send creature back to spawn location and evade.
+    void EnterEvadeMode(EvadeReason /*why*/ = EVADE_REASON_OTHER) override;    // Send creature back to spawn location and evade.
 
     void EnterCombat(Unit* /*who*/) override;               // Used to reset cooldowns for our spells and to inform the raid that we're under attack
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,112 +19,62 @@
 #define DB2_FILE_LOADER_H
 
 #include "Define.h"
-#include "Utilities/ByteConverter.h"
 #include "Implementation/HotfixDatabase.h"
-#include <cassert>
-#include <list>
 
-class DB2FileLoader
+class DB2FileLoaderImpl;
+struct DB2Meta;
+
+#pragma pack(push, 1)
+struct DB2Header
 {
-    public:
+    uint32 Signature;
+    uint32 RecordCount;
+    uint32 FieldCount;
+    uint32 RecordSize;
+    uint32 StringTableSize;
+    uint32 TableHash;
+    uint32 LayoutHash;
+    uint32 MinId;
+    uint32 MaxId;
+    uint32 Locale;
+    uint32 CopyTableSize;
+    uint16 Flags;
+    int16 IndexField;
+};
+#pragma pack(pop)
+
+class TC_SHARED_API DB2FileLoader
+{
+public:
     DB2FileLoader();
     ~DB2FileLoader();
 
-    bool Load(const char *filename, const char *fmt);
+    bool Load(char const* filename, DB2Meta const* meta);
+    char* AutoProduceData(uint32& count, char**& indexTable, std::vector<char*>& stringPool);
+    char* AutoProduceStrings(char* dataTable, uint32 locale);
+    void AutoProduceRecordCopies(uint32 records, char** indexTable, char* dataTable);
 
-    class Record
-    {
-    public:
-        float getFloat(size_t field) const
-        {
-            assert(field < file.fieldCount);
-            float val = *reinterpret_cast<float*>(offset + file.GetOffset(field));
-            EndianConvert(val);
-            return val;
-        }
-        uint32 getUInt(size_t field) const
-        {
-            assert(field < file.fieldCount);
-            uint32 val = *reinterpret_cast<uint32*>(offset + file.GetOffset(field));
-            EndianConvert(val);
-            return val;
-        }
-        uint8 getUInt8(size_t field) const
-        {
-            assert(field < file.fieldCount);
-            return *reinterpret_cast<uint8*>(offset + file.GetOffset(field));
-        }
-        uint64 getUInt64(size_t field) const
-        {
-            assert(field < file.fieldCount);
-            uint64 val = *reinterpret_cast<uint64*>(offset + file.GetOffset(field));
-            EndianConvert(val);
-            return val;
-        }
-        const char *getString(size_t field) const
-        {
-            assert(field < file.fieldCount);
-            size_t stringOffset = getUInt(field);
-            assert(stringOffset < file.stringSize);
-            return reinterpret_cast<char*>(file.stringTable + stringOffset);
-        }
+    uint32 GetCols() const { return _header.FieldCount; }
+    uint32 GetTableHash() const { return _header.TableHash; }
+    uint32 GetLayoutHash() const { return _header.LayoutHash; }
 
-    private:
-        Record(DB2FileLoader &file_, unsigned char *offset_): offset(offset_), file(file_) {}
-        unsigned char *offset;
-        DB2FileLoader &file;
-
-        friend class DB2FileLoader;
-    };
-
-    // Get record by id
-    Record getRecord(size_t id);
-    /// Get begin iterator over records
-
-    uint32 GetNumRows() const { return recordCount;}
-    uint32 GetCols() const { return fieldCount; }
-    uint32 GetOffset(size_t id) const { return (fieldsOffset != NULL && id < fieldCount) ? fieldsOffset[id] : 0; }
-    uint32 GetHash() const { return tableHash; }
-    bool IsLoaded() const { return (data != NULL); }
-    char* AutoProduceData(const char* fmt, uint32& count, char**& indexTable);
-    char* AutoProduceStringsArrayHolders(const char* fmt, char* dataTable);
-    char* AutoProduceStrings(const char* fmt, char* dataTable, uint32 locale);
-    static uint32 GetFormatRecordSize(const char * format, int32 * index_pos = NULL);
-    static uint32 GetFormatStringFieldCount(const char * format);
-    static uint32 GetFormatLocalizedStringFieldCount(const char * format);
 private:
-    char const* fileName;
-
-    uint32 recordSize;
-    uint32 recordCount;
-    uint32 fieldCount;
-    uint32 stringSize;
-    uint32 *fieldsOffset;
-    unsigned char *data;
-    unsigned char *stringTable;
-
-    // WDB2 / WCH2 fields
-    uint32 tableHash;    // WDB2
-    uint32 build;        // WDB2
-
-    int unk1;            // WDB2 (Unix time in WCH2)
-    int minIndex;        // WDB2
-    int maxIndex;        // WDB2 (index table)
-    int localeMask;      // WDB2
-    int unk5;            // WDB2
+    DB2FileLoaderImpl* _impl;
+    DB2Header _header;
 };
 
-class DB2DatabaseLoader
+class TC_SHARED_API DB2DatabaseLoader
 {
 public:
-    explicit DB2DatabaseLoader(std::string const& storageName) : _storageName(storageName) { }
+    DB2DatabaseLoader(std::string const& storageName, DB2Meta const* meta) : _storageName(storageName), _meta(meta) { }
 
-    char* Load(const char* format, HotfixDatabaseStatements preparedStatement, uint32& records, char**& indexTable, char*& stringHolders, std::list<char*>& stringPool);
-    void LoadStrings(const char* format, HotfixDatabaseStatements preparedStatement, uint32 locale, char**& indexTable, std::list<char*>& stringPool);
+    char* Load(HotfixDatabaseStatements preparedStatement, uint32& records, char**& indexTable, char*& stringHolders, std::vector<char*>& stringPool);
+    void LoadStrings(HotfixDatabaseStatements preparedStatement, uint32 locale, uint32 records, char** indexTable, std::vector<char*>& stringPool);
     static char* AddString(char const** holder, std::string const& value);
 
 private:
     std::string _storageName;
+    DB2Meta const* _meta;
 };
 
 #endif

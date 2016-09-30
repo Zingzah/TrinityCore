@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -168,13 +168,6 @@ namespace WorldPackets
             time_t ExpireTime = time_t(0);
         };
 
-        struct CalendarSendCalendarRaidResetInfo
-        {
-            int32 MapID = 0;
-            uint32 Duration = 0;
-            int32 Offset = 0;
-        };
-
         struct CalendarSendCalendarEventInfo
         {
             uint64 EventID = 0;
@@ -194,12 +187,9 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            time_t RaidOrigin = time_t(0);
             time_t ServerTime = time_t(0);
-            time_t ServerNow = time_t(0);
             std::vector<CalendarSendCalendarInviteInfo> Invites;
             std::vector<CalendarSendCalendarRaidLockoutInfo> RaidLockouts;
-            std::vector<CalendarSendCalendarRaidResetInfo> RaidResets;
             std::vector<CalendarSendCalendarEventInfo> Events;
         };
 
@@ -473,6 +463,32 @@ namespace WorldPackets
             std::string Name;
         };
 
+        class CalendarRaidLockoutAdded final : public ServerPacket
+        {
+        public:
+            CalendarRaidLockoutAdded() : ServerPacket(SMSG_CALENDAR_RAID_LOCKOUT_ADDED, 8 + 4 + 4 + 4 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            uint64 InstanceID = 0;
+            uint32 DifficultyID = 0;
+            int32 TimeRemaining = 0;
+            uint32 ServerTime = 0;
+            int32 MapID = 0;
+        };
+
+        class CalendarRaidLockoutRemoved final : public ServerPacket
+        {
+        public:
+            CalendarRaidLockoutRemoved() : ServerPacket(SMSG_CALENDAR_RAID_LOCKOUT_REMOVED, 8 + 4 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            uint64 InstanceID = 0;
+            int32 MapID = 0;
+            uint32 DifficultyID = 0;
+        };
+
         class CalendarRaidLockoutUpdated final : public ServerPacket
         {
         public:
@@ -541,6 +557,18 @@ namespace WorldPackets
             uint64 EventID = 0;
             std::string Notes;
             bool ClearPending = false;
+        };
+
+        class CalendarComplain final : public ClientPacket
+        {
+        public:
+            CalendarComplain(WorldPacket&& packet) : ClientPacket(CMSG_CALENDAR_COMPLAIN, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid InvitedByGUID;
+            uint64 InviteID = 0;
+            uint64 EventID = 0;
         };
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -59,6 +59,7 @@ namespace WorldPackets
             uint32 EndTime = 0;
             ObjectGuid Bidder;
             uint64 BidAmount = 0;
+            std::vector<Item::ItemGemInstanceData> Gems;
         };
 
         struct AuctionOwnerNotification
@@ -187,10 +188,10 @@ namespace WorldPackets
             void Read() override;
 
             ObjectGuid Auctioneer;
-            int32 Count = 0;
-            int32 ChangeNumberGlobal = 0;
-            int32 ChangeNumberCursor = 0;
-            int32 ChangeNumberTombstone = 0;
+            uint32 ChangeNumberGlobal = 0;
+            uint32 ChangeNumberCursor = 0;
+            uint32 ChangeNumberTombstone = 0;
+            uint32 Count = 0;
         };
 
         class AuctionListPendingSales final : public ClientPacket
@@ -254,25 +255,37 @@ namespace WorldPackets
         public:
             struct Sort
             {
-                uint8 UnkByte1 = 0;
-                uint8 UnkByte2 = 0;
+                uint8 Type = 0;
+                uint8 Direction = 0;
+            };
+
+            struct ClassFilter
+            {
+                struct SubClassFilter
+                {
+                    int32 ItemSubclass;
+                    uint32 InvTypeMask;
+                };
+
+                int32 ItemClass;
+                Array<SubClassFilter, 31> SubClassFilters;
             };
 
             AuctionListItems(WorldPacket&& packet) : ClientPacket(CMSG_AUCTION_LIST_ITEMS, std::move(packet)) { }
 
             void Read() override;
 
-            ObjectGuid Auctioneer;
-            uint8 SortCount = 0;
-            uint8 MaxLevel = 100;
             uint32 Offset = 0;
-            int32 ItemClass = 0;
+            ObjectGuid Auctioneer;
             uint8 MinLevel = 1;
-            int32 InvType = 0;
+            uint8 MaxLevel = 100;
             int32 Quality = 0;
-            int32 ItemSubclass = 0;
-            bool ExactMatch = true;
+            uint8 SortCount = 0;
+            Array<uint8, BATTLE_PET_SPECIES_MAX_ID / 8 + 1> KnownPets;
+            int8 MaxPetLevel;
             std::string Name;
+            Array<ClassFilter, 7> ClassFilters;
+            bool ExactMatch = true;
             bool OnlyUsable = false;
             std::vector<Sort> DataSort;
         };

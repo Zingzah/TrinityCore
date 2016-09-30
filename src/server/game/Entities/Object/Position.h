@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -20,9 +20,11 @@
 
 #include "Common.h"
 
+#include <G3D/Vector3.h>
+
 class ByteBuffer;
 
-struct Position
+struct TC_GAME_API Position
 {
     Position(float x = 0, float y = 0, float z = 0, float o = 0)
         : m_positionX(x), m_positionY(y), m_positionZ(z), m_orientation(NormalizeOrientation(o)) { }
@@ -85,6 +87,11 @@ public:
     void Relocate(Position const* pos)
     {
         m_positionX = pos->m_positionX; m_positionY = pos->m_positionY; m_positionZ = pos->m_positionZ; SetOrientation(pos->m_orientation);
+    }
+
+    void Relocate(G3D::Vector3 const& pos)
+    {
+        m_positionX = pos.x; m_positionY = pos.y; m_positionZ = pos.z;
     }
 
     void RelocateOffset(Position const &offset);
@@ -218,7 +225,7 @@ public:
 
 #define MAPID_INVALID 0xFFFFFFFF
 
-class WorldLocation : public Position
+class TC_GAME_API WorldLocation : public Position
 {
 public:
     explicit WorldLocation(uint32 mapId = MAPID_INVALID, float x = 0.f, float y = 0.f, float z = 0.f, float o = 0.f)
@@ -249,11 +256,11 @@ public:
     uint32 m_mapId;
 };
 
-ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYStreamer const& streamer);
-ByteBuffer& operator>>(ByteBuffer& buf, Position::PositionXYStreamer const& streamer);
-ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYZStreamer const& streamer);
-ByteBuffer& operator>>(ByteBuffer& buf, Position::PositionXYZStreamer const& streamer);
-ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYZOStreamer const& streamer);
-ByteBuffer& operator>>(ByteBuffer& buf, Position::PositionXYZOStreamer const& streamer);
+TC_GAME_API ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYStreamer const& streamer);
+TC_GAME_API ByteBuffer& operator>>(ByteBuffer& buf, Position::PositionXYStreamer const& streamer);
+TC_GAME_API ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYZStreamer const& streamer);
+TC_GAME_API ByteBuffer& operator>>(ByteBuffer& buf, Position::PositionXYZStreamer const& streamer);
+TC_GAME_API ByteBuffer& operator<<(ByteBuffer& buf, Position::PositionXYZOStreamer const& streamer);
+TC_GAME_API ByteBuffer& operator>>(ByteBuffer& buf, Position::PositionXYZOStreamer const& streamer);
 
 #endif // Trinity_game_Position_h__

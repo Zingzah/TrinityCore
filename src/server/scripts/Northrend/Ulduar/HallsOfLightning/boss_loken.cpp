@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -97,7 +97,7 @@ public:
         {
             Initialize();
             _Reset();
-            instance->DoStopTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_TIMELY_DEATH_START_EVENT);
+            instance->DoStopCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_TIMELY_DEATH_START_EVENT);
         }
 
         void EnterCombat(Unit* /*who*/) override
@@ -108,7 +108,7 @@ public:
             events.ScheduleEvent(EVENT_ARC_LIGHTNING, 15000);
             events.ScheduleEvent(EVENT_LIGHTNING_NOVA, 20000);
             events.ScheduleEvent(EVENT_RESUME_PULSING_SHOCKWAVE, 1000);
-            instance->DoStartTimedAchievement(ACHIEVEMENT_TIMED_TYPE_EVENT, ACHIEV_TIMELY_DEATH_START_EVENT);
+            instance->DoStartCriteriaTimer(CRITERIA_TIMED_TYPE_EVENT, ACHIEV_TIMELY_DEATH_START_EVENT);
         }
 
         void JustDied(Unit* /*killer*/) override

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -431,7 +431,7 @@ void AuctionBotBuyer::PlaceBidToEntry(AuctionEntry* auction, uint32 bidPrice)
 
     // Update auction to DB
     PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AUCTION_BID);
-    stmt->setUInt32(0, auction->bidder);
+    stmt->setUInt64(0, auction->bidder);
     stmt->setUInt32(1, auction->bid);
     stmt->setUInt32(2, auction->Id);
     trans->Append(stmt);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,11 +19,14 @@
 #define AllPackets_h__
 
 #include "AchievementPackets.h"
+#include "ArtifactPackets.h"
 #include "AuctionHousePackets.h"
 #include "AuthenticationPackets.h"
 #include "BankPackets.h"
+#include "BlackMarketPackets.h"
 #include "BattlefieldPackets.h"
 #include "BattlegroundPackets.h"
+#include "BattlenetPackets.h"
 #include "BattlePetPackets.h"
 #include "BlackMarketPackets.h"
 #include "CalendarPackets.h"
@@ -50,7 +53,9 @@
 #include "NPCPackets.h"
 #include "PacketUtilities.h"
 #include "PartyPackets.h"
+#include "PetPackets.h"
 #include "PetitionPackets.h"
+#include "PetPackets.h"
 #include "QueryPackets.h"
 #include "QuestPackets.h"
 #include "ReferAFriendPackets.h"
@@ -66,8 +71,11 @@
 #include "TotemPackets.h"
 #include "ToyPackets.h"
 #include "TradePackets.h"
+#include "TransmogrificationPackets.h"
 #include "VehiclePackets.h"
+#include "VoicePackets.h"
 #include "VoidStoragePackets.h"
+#include "WardenPackets.h"
 #include "WhoPackets.h"
 #include "WorldStatePackets.h"
 

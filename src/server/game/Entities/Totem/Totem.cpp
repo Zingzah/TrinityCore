@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
+ * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -67,7 +67,17 @@ void Totem::InitStats(uint32 duration)
         }
 
         // set display id depending on caster's race
-        SetDisplayId(owner->GetModelForTotem(PlayerTotemType(m_Properties->ID)));
+        if (SpellInfo const* createdBySpell = sSpellMgr->GetSpellInfo(GetUInt32Value(UNIT_CREATED_BY_SPELL)))
+        {
+            SpellEffectInfoVector effects = createdBySpell->GetEffectsForDifficulty(DIFFICULTY_NONE);
+            auto summonEffect = std::find_if(effects.begin(), effects.end(), [](SpellEffectInfo const* effect)
+            {
+                return effect && effect->IsEffect(SPELL_EFFECT_SUMMON);
+            });
+
+            if (summonEffect != effects.end())
+                SetDisplayId(owner->GetModelForTotem(PlayerTotemType((*summonEffect)->MiscValueB)));
+        }
     }
 
     Minion::InitStats(duration);
@@ -90,9 +100,6 @@ void Totem::InitSummon()
     // Some totems can have both instant effect and passive spell
     if (GetSpell(1))
         CastSpell(this, GetSpell(1), true);
-
-    if (m_Properties->ID == SUMMON_TYPE_TOTEM_FIRE && GetOwner()->HasAura(SPELL_TOTEMIC_WRATH_TALENT))
-        CastSpell(this, SPELL_TOTEMIC_WRATH, true);
 }
 
 void Totem::UnSummon(uint32 msTime)
